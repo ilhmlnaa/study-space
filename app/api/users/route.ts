@@ -7,7 +7,10 @@ export async function GET(request: Request) {
   try {
     const session = await auth();
 
-    if (session?.user?.role !== "ADMIN") {
+    const isAdmin = session?.user?.role === "ADMIN";
+    const isMentor = session?.user?.role === "MENTOR";
+
+    if (!isAdmin && !isMentor) {
       return NextResponse.json(
         { error: "You are not authorized to access this resource." },
         { status: 403 },
@@ -22,6 +25,14 @@ export async function GET(request: Request) {
       return NextResponse.json(
         { error: "Invalid role filter." },
         { status: 400 },
+      );
+    }
+
+    // Mentors can only search for MODERATORs (for room assignment)
+    if (isMentor && role && role !== "MODERATOR") {
+      return NextResponse.json(
+        { error: "Mentors can only search for moderators." },
+        { status: 403 },
       );
     }
 

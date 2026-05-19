@@ -93,7 +93,9 @@ export function LoginForm() {
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
     try {
-      await signIn("google", { callbackUrl: "/" });
+      // Use a dedicated callback page so we can resolve the role-based
+      // redirect after Google finishes authenticating the user.
+      await signIn("google", { callbackUrl: "/auth/callback" });
     } catch {
       setGeneralError("Google sign-in failed. Please try again.");
       setIsGoogleLoading(false);

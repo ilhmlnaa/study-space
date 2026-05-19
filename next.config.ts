@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**",
+      },
+      {
+        protocol: "http",
+        hostname: "**",
+      },
+    ],
+  },
   output: "standalone",
-
-  // Transpile Excalidraw for proper bundling with the App Router.
   transpilePackages: ["@excalidraw/excalidraw"],
 };
 

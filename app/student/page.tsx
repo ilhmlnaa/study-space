@@ -1,9 +1,12 @@
-import { BookOpen, Users } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, BookOpen, Users } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/cn";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { EmptyState } from "@/components/layout/empty-state";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -63,7 +66,7 @@ export default async function StudentDashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {activeRooms.map((room) => (
-              <Card key={room.id}>
+              <Card key={room.id} className="flex flex-col">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base">{room.title}</CardTitle>
@@ -73,12 +76,22 @@ export default async function StudentDashboardPage() {
                     <CardDescription>{room.topic}</CardDescription>
                   ) : null}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-1 flex-col justify-between gap-3">
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" aria-hidden="true" />
                     {room._count.participants} participant
                     {room._count.participants !== 1 ? "s" : ""}
                   </span>
+                  <Link
+                    href={`/room/${room.id}`}
+                    className={cn(
+                      buttonVariants({ size: "sm" }),
+                      "w-full justify-center",
+                    )}
+                  >
+                    Enter Room
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                 </CardContent>
               </Card>
             ))}
@@ -100,7 +113,7 @@ export default async function StudentDashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {closedRooms.map((room) => (
-              <Card key={room.id}>
+              <Card key={room.id} className="flex flex-col">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base">{room.title}</CardTitle>
@@ -110,12 +123,22 @@ export default async function StudentDashboardPage() {
                     <CardDescription>{room.topic}</CardDescription>
                   ) : null}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-1 flex-col justify-between gap-3">
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" aria-hidden="true" />
                     {room._count.participants} participant
                     {room._count.participants !== 1 ? "s" : ""}
                   </span>
+                  <Link
+                    href={`/room/${room.id}`}
+                    className={cn(
+                      buttonVariants({ size: "sm", variant: "outline" }),
+                      "w-full justify-center",
+                    )}
+                  >
+                    View History
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                 </CardContent>
               </Card>
             ))}

@@ -54,11 +54,12 @@ export default async function RoomPage({ params }: RoomPageProps) {
   }
 
   const userId = session.user.id;
+  const isAdmin = session.user.role === "ADMIN";
   const isCreator = room.createdById === userId;
   const isParticipant = room.participants.some((p) => p.userId === userId);
   const isModerator = room.moderators.some((m) => m.userId === userId);
 
-  if (!isCreator && !isParticipant && !isModerator) {
+  if (!isAdmin && !isCreator && !isParticipant && !isModerator) {
     redirect("/student");
   }
 

@@ -10,8 +10,15 @@ export default auth((req) => {
   const isApiAuth = pathname.startsWith("/api/auth");
   const isApiRegister = pathname.startsWith("/api/register");
   const isApiHealth = pathname.startsWith("/api/health");
+  const isAuthCallback = pathname.startsWith("/auth/callback");
 
-  if (isPublicRoute || isApiAuth || isApiRegister || isApiHealth) {
+  if (
+    isPublicRoute ||
+    isApiAuth ||
+    isApiRegister ||
+    isApiHealth ||
+    isAuthCallback
+  ) {
     return NextResponse.next();
   }
 
