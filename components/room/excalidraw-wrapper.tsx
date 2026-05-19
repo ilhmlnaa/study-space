@@ -29,7 +29,9 @@ export default function ExcalidrawWrapper({
   const [api, setApi] = useState<any>(null);
   const isApplyingRemoteRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastVersionRef = useRef<number>(-1);
+  const lastSyncedVersionRef = useRef<number>(-1);
   const lastSyncTimeRef = useRef<number>(0);
   const socketRef = useRef(socket);
   const roomIdRef = useRef(roomId);
@@ -106,8 +108,20 @@ export default function ExcalidrawWrapper({
           if (now - lastSyncTimeRef.current >= 200) {
             sock.emit("whiteboard:sync", { roomId: rid, elements });
             lastSyncTimeRef.current = now;
+            lastSyncedVersionRef.current = version;
           }
         }
+
+        // Always schedule a final sync to catch the last state of a gesture
+        // (e.g. resize completion that wasn't sent during isDrawing).
+        if (finalSyncTimerRef.current) clearTimeout(finalSyncTimerRef.current);
+        finalSyncTimerRef.current = setTimeout(() => {
+          if (lastSyncedVersionRef.current !== lastVersionRef.current) {
+            sock.emit("whiteboard:sync", { roomId: rid, elements });
+            lastSyncedVersionRef.current = lastVersionRef.current;
+            lastSyncTimeRef.current = Date.now();
+          }
+        }, 250);
 
         // Debounced save
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
