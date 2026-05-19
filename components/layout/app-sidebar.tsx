@@ -5,7 +5,6 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  BookOpen,
   LayoutDashboard,
   Users,
   DoorOpen,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { Logo } from "@/components/layout/logo";
 import { UserAvatar } from "@/components/layout/user-avatar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -147,12 +147,7 @@ export function AppSidebar({
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BookOpen className="h-4 w-4" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-foreground">
-            StudySpace
-          </span>
+          <Logo size={28} textClassName="text-lg" />
           <button
             type="button"
             onClick={() => setIsOpen(false)}

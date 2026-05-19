@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { Logo } from "@/components/layout/logo";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -20,8 +21,7 @@ export function LandingNavbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <BookOpen className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold text-foreground">StudySpace</span>
+          <Logo size={24} textClassName="text-lg" priority />
         </Link>
 
         {/* Desktop nav links */}
@@ -60,7 +60,11 @@ export function LandingNavbar() {
           className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted md:hidden"
           aria-label="Toggle menu"
         >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileOpen ? (
+            <X className="h-5 w-5" />
+          ) : (
+            <Menu className="h-5 w-5" />
+          )}
         </button>
       </div>
 
