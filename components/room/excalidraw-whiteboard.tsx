@@ -7,13 +7,11 @@ import type { Socket } from "socket.io-client";
 
 import { cn } from "@/lib/cn";
 
-const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-  {
-    ssr: false,
-    loading: () => <WhiteboardSkeleton />,
-  },
-);
+// Excalidraw must be loaded as a separate client component with CSS
+const ExcalidrawWrapper = dynamic(() => import("./excalidraw-wrapper"), {
+  ssr: false,
+  loading: () => <WhiteboardSkeleton />,
+});
 
 type ExcalidrawWhiteboardProps = {
   socket: Socket | null;
@@ -28,10 +26,6 @@ type ExcalidrawWhiteboardProps = {
   isCreator: boolean;
 };
 
-type ExcalidrawApi = {
-  updateScene: (data: { elements?: readonly any[] }) => void;
-};
-
 export function ExcalidrawWhiteboard({
   socket,
   roomId,
@@ -40,47 +34,27 @@ export function ExcalidrawWhiteboard({
   isReadOnly,
   isCreator,
 }: ExcalidrawWhiteboardProps) {
-  const [api, setApi] = useState<ExcalidrawApi | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
 
-  // Build initialData ONCE - Excalidraw expects stable initialData reference.
-  // Re-passing a new object on each render causes the canvas to re-initialize
-  // and can crash with stale appState (e.g. plain-object collaborators).
-  const initialPayload = useMemo(
-    () => ({
-      elements: Array.isArray(initialData?.elements)
-        ? (initialData!.elements as readonly any[])
-        : [],
-      // appState is intentionally minimal. Any saved appState (zoom, scroll,
-      // theme, collaborators) is volatile and tends to corrupt the canvas
-      // when restored from JSON. Excalidraw will fill in safe defaults.
-      appState: {
-        collaborators: new Map(),
-      },
-      files:
-        initialData?.files &&
-        typeof initialData.files === "object" &&
-        !Array.isArray(initialData.files)
-          ? (initialData.files as Record<string, unknown>)
-          : {},
-    }),
+  const initialElements = useMemo(
+    () => (Array.isArray(initialData?.elements) ? initialData!.elements : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
-  // Realtime sync: listen for updates from other users and apply via the
-  // imperative API instead of re-passing initialData (which would remount).
+  // Listen for realtime updates from other users
   useEffect(() => {
-    if (!socket || !api) return;
+    if (!socket || !excalidrawAPI) return;
 
     const handleUpdate = (data: { elements?: unknown[] }) => {
       if (Array.isArray(data.elements)) {
-        api.updateScene({ elements: data.elements });
+        excalidrawAPI.updateScene({ elements: data.elements });
       }
     };
 
     const handleCleared = () => {
-      api.updateScene({ elements: [] });
+      excalidrawAPI.updateScene({ elements: [] });
     };
 
     socket.on("whiteboard:update", handleUpdate);
@@ -90,19 +64,15 @@ export function ExcalidrawWhiteboard({
       socket.off("whiteboard:update", handleUpdate);
       socket.off("whiteboard:cleared", handleCleared);
     };
-  }, [socket, api]);
+  }, [socket, excalidrawAPI]);
 
-  function handleChange(
-    elements: readonly unknown[],
-    appState: unknown,
-    files: unknown,
-  ) {
+  function handleChange(elements: readonly any[], appState: any, files: any) {
     if (!socket) return;
 
-    // Sync immediately for realtime collaboration (lightweight payload).
+    // Sync immediately for realtime collaboration
     socket.emit("whiteboard:sync", { roomId, elements });
 
-    // Debounced save to database (2 seconds after last change).
+    // Debounced save to database
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
@@ -114,7 +84,9 @@ export function ExcalidrawWhiteboard({
   function handleClear() {
     if (!socket) return;
     socket.emit("whiteboard:clear", { roomId });
-    if (api) api.updateScene({ elements: [] });
+    if (excalidrawAPI) {
+      excalidrawAPI.updateScene({ elements: [] });
+    }
   }
 
   const viewMode = isReadOnly || !canDraw;
@@ -138,12 +110,12 @@ export function ExcalidrawWhiteboard({
         </div>
       )}
 
-      <div className="relative flex-1 min-h-0">
-        <Excalidraw
-          excalidrawAPI={(instance) => setApi(instance as ExcalidrawApi)}
-          initialData={initialPayload as any}
-          onChange={handleChange}
+      <div className="relative flex-1 min-h-0" style={{ minHeight: "400px" }}>
+        <ExcalidrawWrapper
+          initialElements={initialElements}
           viewModeEnabled={viewMode}
+          onExcalidrawAPI={setExcalidrawAPI}
+          onChange={handleChange}
         />
 
         {viewMode && (
@@ -164,7 +136,10 @@ export function ExcalidrawWhiteboard({
 
 function WhiteboardSkeleton() {
   return (
-    <div className="flex flex-1 items-center justify-center min-h-0">
+    <div
+      className="flex flex-1 items-center justify-center min-h-0"
+      style={{ minHeight: "400px" }}
+    >
       <div className="flex flex-col items-center gap-3">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
         <p className="text-sm text-muted-foreground">Loading whiteboard...</p>

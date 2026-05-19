@@ -50,17 +50,17 @@ export function usePolls({
       });
     };
 
-    const handlePollResult = (data: { poll: Poll }) => {
+    const handlePollResult = (data: { poll?: Poll; result?: Poll }) => {
+      const updatedPoll = data.poll ?? data.result;
+      if (!updatedPoll) return;
       setPolls((prev) =>
-        prev.map((p) => (p.id === data.poll.id ? data.poll : p)),
+        prev.map((p) => (p.id === updatedPoll.id ? updatedPoll : p)),
       );
     };
 
     const handlePollClosed = (data: { pollId: string }) => {
       setPolls((prev) =>
-        prev.map((p) =>
-          p.id === data.pollId ? { ...p, isActive: false } : p,
-        ),
+        prev.map((p) => (p.id === data.pollId ? { ...p, isActive: false } : p)),
       );
     };
 

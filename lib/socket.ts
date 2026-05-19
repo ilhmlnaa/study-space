@@ -202,7 +202,7 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
     socket.on(
       "poll:vote",
       (data: { roomId: string; pollId: string; result: unknown }) => {
-        io!.to(data.roomId).emit("poll:result", data);
+        io!.to(data.roomId).emit("poll:result", { poll: data.result });
       },
     );
 
@@ -211,26 +211,12 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       io!.to(data.roomId).emit("poll:closed", data);
     });
 
-    // Raise hand
-    socket.on(
-      "hand:raise",
-      async (data: { roomId: string; userId: string }) => {
-        const { roomId, userId } = data;
-        try {
-          const raiseHand = await prisma.raiseHand.create({
-            data: { roomId, userId },
-            include: {
-              user: {
-                select: { id: true, name: true, image: true, role: true },
-              },
-            },
-          });
-          io!.to(roomId).emit("hand:raised", { raiseHand });
-        } catch (err) {
-          console.error("[Socket] hand:raise error", err);
-        }
-      },
-    );
+    // Raise hand - client sends already-created raiseHand object
+    socket.on("hand:raise", (data: { roomId: string; raiseHand: unknown }) => {
+      const { roomId, raiseHand } = data;
+      // Just broadcast to room - REST API already created the record
+      io!.to(roomId).emit("hand:raised", { raiseHand });
+    });
 
     // Resolve raise hand
     socket.on(
