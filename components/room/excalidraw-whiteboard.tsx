@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Trash2 } from "lucide-react";
 import type { Socket } from "socket.io-client";
 
 import { cn } from "@/lib/cn";
-import { useWhiteboard } from "@/hooks/use-whiteboard";
 
 const Excalidraw = dynamic(
   async () => (await import("@excalidraw/excalidraw")).Excalidraw,
@@ -19,10 +18,18 @@ const Excalidraw = dynamic(
 type ExcalidrawWhiteboardProps = {
   socket: Socket | null;
   roomId: string;
-  initialData: { elements: any[]; appState?: any; files?: any } | null;
+  initialData: {
+    elements: unknown[];
+    appState?: unknown;
+    files?: unknown;
+  } | null;
   canDraw: boolean;
   isReadOnly: boolean;
   isCreator: boolean;
+};
+
+type ExcalidrawApi = {
+  updateScene: (data: { elements?: readonly any[] }) => void;
 };
 
 export function ExcalidrawWhiteboard({
@@ -33,53 +40,87 @@ export function ExcalidrawWhiteboard({
   isReadOnly,
   isCreator,
 }: ExcalidrawWhiteboardProps) {
+  const [api, setApi] = useState<ExcalidrawApi | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const {
-    elements,
-    appState,
-    files,
-    syncWhiteboard,
-    saveWhiteboard,
-    clearWhiteboard,
-  } = useWhiteboard({
-    socket,
-    roomId,
-    initialData: initialData
-      ? {
-          elements: initialData.elements,
-          appState: initialData.appState ?? {},
-          files: initialData.files ?? null,
-        }
-      : null,
-  });
+  // Build initialData ONCE - Excalidraw expects stable initialData reference.
+  // Re-passing a new object on each render causes the canvas to re-initialize
+  // and can crash with stale appState (e.g. plain-object collaborators).
+  const initialPayload = useMemo(
+    () => ({
+      elements: Array.isArray(initialData?.elements)
+        ? (initialData!.elements as readonly any[])
+        : [],
+      // appState is intentionally minimal. Any saved appState (zoom, scroll,
+      // theme, collaborators) is volatile and tends to corrupt the canvas
+      // when restored from JSON. Excalidraw will fill in safe defaults.
+      appState: {
+        collaborators: new Map(),
+      },
+      files:
+        initialData?.files &&
+        typeof initialData.files === "object" &&
+        !Array.isArray(initialData.files)
+          ? (initialData.files as Record<string, unknown>)
+          : {},
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Realtime sync: listen for updates from other users and apply via the
+  // imperative API instead of re-passing initialData (which would remount).
+  useEffect(() => {
+    if (!socket || !api) return;
+
+    const handleUpdate = (data: { elements?: unknown[] }) => {
+      if (Array.isArray(data.elements)) {
+        api.updateScene({ elements: data.elements });
+      }
+    };
+
+    const handleCleared = () => {
+      api.updateScene({ elements: [] });
+    };
+
+    socket.on("whiteboard:update", handleUpdate);
+    socket.on("whiteboard:cleared", handleCleared);
+
+    return () => {
+      socket.off("whiteboard:update", handleUpdate);
+      socket.off("whiteboard:cleared", handleCleared);
+    };
+  }, [socket, api]);
 
   function handleChange(
-    updatedElements: readonly any[],
-    updatedAppState: any,
-    updatedFiles: any,
+    elements: readonly unknown[],
+    appState: unknown,
+    files: unknown,
   ) {
-    // Sync immediately for realtime collaboration
-    syncWhiteboard(updatedElements, updatedAppState, updatedFiles);
+    if (!socket) return;
 
-    // Debounced save to database (2 seconds after last change)
+    // Sync immediately for realtime collaboration (lightweight payload).
+    socket.emit("whiteboard:sync", { roomId, elements });
+
+    // Debounced save to database (2 seconds after last change).
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = setTimeout(() => {
-      saveWhiteboard(updatedElements, updatedAppState, updatedFiles);
+      socket.emit("whiteboard:save", { roomId, elements, appState, files });
     }, 2000);
   }
 
   function handleClear() {
-    clearWhiteboard();
+    if (!socket) return;
+    socket.emit("whiteboard:clear", { roomId });
+    if (api) api.updateScene({ elements: [] });
   }
 
   const viewMode = isReadOnly || !canDraw;
 
   return (
     <div className="relative flex flex-1 flex-col min-h-0">
-      {/* Toolbar */}
       {isCreator && !isReadOnly && (
         <div className="flex items-center gap-2 border-b px-4 py-2">
           <button
@@ -97,22 +138,14 @@ export function ExcalidrawWhiteboard({
         </div>
       )}
 
-      {/* Excalidraw container */}
       <div className="relative flex-1 min-h-0">
         <Excalidraw
-          initialData={{
-            elements: elements ?? [],
-            appState: {
-              ...(appState ?? {}),
-              collaborators: new Map(), // always a Map, never a plain object
-            },
-            files: files ?? {},
-          }}
+          excalidrawAPI={(instance) => setApi(instance as ExcalidrawApi)}
+          initialData={initialPayload as any}
           onChange={handleChange}
           viewModeEnabled={viewMode}
         />
 
-        {/* Read-only overlay badge */}
         {viewMode && (
           <div
             className={cn(
