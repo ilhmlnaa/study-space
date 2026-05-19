@@ -2,7 +2,7 @@
 
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { Socket } from "socket.io-client";
 
@@ -26,14 +26,26 @@ export default function ExcalidrawWrapper({
   isCreator,
 }: ExcalidrawWrapperProps) {
   const apiRef = useRef<any>(null);
+  const [api, setApi] = useState<any>(null);
   const isApplyingRemoteRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastVersionRef = useRef<number>(-1);
   const lastSyncTimeRef = useRef<number>(0);
+  const socketRef = useRef(socket);
+  const roomIdRef = useRef(roomId);
+
+  // Keep refs in sync without causing re-renders
+  useEffect(() => {
+    socketRef.current = socket;
+  }, [socket]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
 
   const viewMode = isReadOnly || !canDraw;
 
-  // Apply remote updates from socket
+  // Subscribe to remote whiteboard updates
   useEffect(() => {
     if (!socket) return;
 
@@ -41,19 +53,18 @@ export default function ExcalidrawWrapper({
       if (!apiRef.current || !Array.isArray(data.elements)) return;
       isApplyingRemoteRef.current = true;
       apiRef.current.updateScene({ elements: data.elements });
-      // Reset on next tick so the resulting onChange has been processed
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         isApplyingRemoteRef.current = false;
-      }, 0);
+      });
     };
 
     const handleCleared = () => {
       if (!apiRef.current) return;
       isApplyingRemoteRef.current = true;
       apiRef.current.updateScene({ elements: [] });
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         isApplyingRemoteRef.current = false;
-      }, 0);
+      });
     };
 
     socket.on("whiteboard:update", handleUpdate);
@@ -65,57 +76,68 @@ export default function ExcalidrawWrapper({
     };
   }, [socket]);
 
-  // Compute a cheap scene version to detect real element changes only
-  function computeSceneVersion(elements: readonly any[]): number {
-    let version = elements.length * 31;
-    for (const el of elements) {
-      version += (el?.version ?? 0) + ((el?.versionNonce ?? 0) % 1_000_000);
-    }
-    return version;
-  }
+  // Subscribe to Excalidraw changes via API (more reliable than onChange prop)
+  useEffect(() => {
+    if (!api) return;
 
-  function handleChange(elements: readonly any[], appState: any, files: any) {
-    if (!socket) return;
-    // Skip emits triggered by applying a remote update (prevents echo loop)
-    if (isApplyingRemoteRef.current) return;
+    const unsubscribe = api.onChange(
+      (elements: readonly any[], appState: any, files: any) => {
+        const sock = socketRef.current;
+        const rid = roomIdRef.current;
+        if (!sock) return;
+        if (isApplyingRemoteRef.current) return;
 
-    // Skip non-meaningful changes (cursor moves, selection, etc.)
-    const version = computeSceneVersion(elements);
-    if (version === lastVersionRef.current) return;
-    lastVersionRef.current = version;
+        // Version check - skip if nothing changed
+        let version = elements.length * 31;
+        for (const el of elements) {
+          version += (el?.version ?? 0) + ((el?.versionNonce ?? 0) % 1_000_000);
+        }
+        if (version === lastVersionRef.current) return;
+        lastVersionRef.current = version;
 
-    // Only sync when user is NOT actively drawing (no dragging/resizing)
-    // appState.draggingElement or appState.resizingElement indicate active gesture
-    const isDrawing =
-      appState?.draggingElement != null ||
-      appState?.resizingElement != null ||
-      appState?.editingElement != null;
+        // Only sync when gesture is complete (not mid-draw)
+        const isDrawing =
+          appState?.draggingElement != null ||
+          appState?.resizingElement != null ||
+          appState?.editingElement != null;
 
-    if (!isDrawing) {
-      // Throttle realtime sync emits
-      const now = Date.now();
-      if (now - lastSyncTimeRef.current >= 200) {
-        socket.emit("whiteboard:sync", { roomId, elements });
-        lastSyncTimeRef.current = now;
-      }
-    }
+        if (!isDrawing) {
+          const now = Date.now();
+          if (now - lastSyncTimeRef.current >= 200) {
+            sock.emit("whiteboard:sync", { roomId: rid, elements });
+            lastSyncTimeRef.current = now;
+          }
+        }
 
-    // Debounced persistence to the database
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      socket.emit("whiteboard:save", { roomId, elements, appState, files });
-    }, 2000);
-  }
+        // Debounced save
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+          sock.emit("whiteboard:save", {
+            roomId: rid,
+            elements,
+            appState,
+            files,
+          });
+        }, 2000);
+      },
+    );
+
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [api]);
 
   function handleClear() {
-    if (!socket) return;
-    socket.emit("whiteboard:clear", { roomId });
+    const sock = socketRef.current;
+    const rid = roomIdRef.current;
+    if (!sock) return;
+    sock.emit("whiteboard:clear", { roomId: rid });
     if (apiRef.current) {
       isApplyingRemoteRef.current = true;
       apiRef.current.updateScene({ elements: [] });
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         isApplyingRemoteRef.current = false;
-      }, 0);
+      });
     }
   }
 
@@ -140,8 +162,9 @@ export default function ExcalidrawWrapper({
 
       <div className="relative flex-1" style={{ minHeight: "400px" }}>
         <Excalidraw
-          excalidrawAPI={(api) => {
-            apiRef.current = api;
+          excalidrawAPI={(instance) => {
+            apiRef.current = instance;
+            setApi(instance);
           }}
           initialData={{
             elements: initialElements,
@@ -150,7 +173,6 @@ export default function ExcalidrawWrapper({
             },
           }}
           viewModeEnabled={viewMode}
-          onChange={handleChange}
         />
 
         {viewMode && (
