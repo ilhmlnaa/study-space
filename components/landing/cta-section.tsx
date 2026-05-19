@@ -3,7 +3,7 @@ import Link from "next/link";
 export function CTASection() {
   return (
     <section className="px-4 py-20 sm:px-6 lg:px-8">
-      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-6 py-16 text-center shadow-xl sm:px-12 sm:py-20">
+      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-linear-to-br from-indigo-600 via-indigo-500 to-purple-600 px-6 py-16 text-center shadow-xl sm:px-12 sm:py-20">
         {/* Decorative blobs */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />

@@ -50,7 +50,7 @@ export function HeroSection() {
     <section className="relative overflow-hidden px-4 pb-20 pt-24 sm:px-6 lg:px-8">
       {/* Gradient background */}
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-0 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute left-1/2 top-0 h-150 w-200 -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
       <div className="mx-auto max-w-5xl text-center">
