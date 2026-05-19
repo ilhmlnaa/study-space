@@ -26,6 +26,7 @@ export async function PATCH(
       );
     }
 
+    const isOwner = raiseHand.userId === session.user.id;
     const isCreator = raiseHand.room.createdById === session.user.id;
     const moderator = await prisma.roomModerator.findUnique({
       where: {
@@ -33,7 +34,7 @@ export async function PATCH(
       },
     });
 
-    if (!isCreator && !moderator) {
+    if (!isOwner && !isCreator && !moderator) {
       return NextResponse.json(
         { error: "You are not allowed to resolve this raise hand." },
         { status: 403 },

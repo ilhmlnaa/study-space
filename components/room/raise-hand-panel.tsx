@@ -32,11 +32,22 @@ export function RaiseHandPanel({
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const unresolvedHands = raiseHands.filter((h) => !h.isResolved);
+  const myActiveHand = unresolvedHands.find((h) => h.userId === currentUserId);
 
   async function handleRaiseHand() {
     setIsRaising(true);
     try {
       await onRaiseHand();
+    } finally {
+      setIsRaising(false);
+    }
+  }
+
+  async function handleLowerOwnHand() {
+    if (!myActiveHand) return;
+    setIsRaising(true);
+    try {
+      await onResolveHand(myActiveHand.id);
     } finally {
       setIsRaising(false);
     }
@@ -56,10 +67,7 @@ export function RaiseHandPanel({
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <Hand
-            className="h-4 w-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <Hand className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <span className="text-sm font-medium text-foreground">
             Raised Hands
             {unresolvedHands.length > 0 && (
@@ -73,11 +81,11 @@ export function RaiseHandPanel({
           <Button
             size="sm"
             variant={userHasActiveHand ? "secondary" : "outline"}
-            onClick={handleRaiseHand}
-            disabled={isRaising || userHasActiveHand}
+            onClick={userHasActiveHand ? handleLowerOwnHand : handleRaiseHand}
+            disabled={isRaising}
           >
             <Hand className="h-3.5 w-3.5" />
-            {userHasActiveHand ? "Hand Raised" : "Raise Hand"}
+            {userHasActiveHand ? "Lower Hand" : "Raise Hand"}
           </Button>
         )}
       </div>

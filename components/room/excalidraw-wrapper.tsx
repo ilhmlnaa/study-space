@@ -84,11 +84,20 @@ export default function ExcalidrawWrapper({
     if (version === lastVersionRef.current) return;
     lastVersionRef.current = version;
 
-    // Throttle realtime sync emits to avoid flooding the socket
-    const now = Date.now();
-    if (now - lastSyncTimeRef.current >= 50) {
-      socket.emit("whiteboard:sync", { roomId, elements });
-      lastSyncTimeRef.current = now;
+    // Only sync when user is NOT actively drawing (no dragging/resizing)
+    // appState.draggingElement or appState.resizingElement indicate active gesture
+    const isDrawing =
+      appState?.draggingElement != null ||
+      appState?.resizingElement != null ||
+      appState?.editingElement != null;
+
+    if (!isDrawing) {
+      // Throttle realtime sync emits
+      const now = Date.now();
+      if (now - lastSyncTimeRef.current >= 200) {
+        socket.emit("whiteboard:sync", { roomId, elements });
+        lastSyncTimeRef.current = now;
+      }
     }
 
     // Debounced persistence to the database
