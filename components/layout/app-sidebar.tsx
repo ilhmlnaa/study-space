@@ -14,6 +14,7 @@ import {
   GraduationCap,
   Menu,
   X,
+  UserCog,
 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -195,8 +196,15 @@ export function AppSidebar({
             <ThemeToggle />
           </div>
 
-          {/* User info */}
-          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+          {/* User info — links to profile */}
+          <Link
+            href="/profile"
+            onClick={() => setIsOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted",
+              pathname === "/profile" && "bg-muted",
+            )}
+          >
             <UserAvatar
               name={userName}
               image={userImage}
@@ -211,7 +219,11 @@ export function AppSidebar({
                 {userEmail ?? ""}
               </p>
             </div>
-          </div>
+            <UserCog
+              className="h-4 w-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+          </Link>
 
           {/* Sign out */}
           <button
