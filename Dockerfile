@@ -13,11 +13,6 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma
-# Disable pnpm 11 supply-chain age policy so recently-published packages
-# (e.g. @typescript-eslint, @unrs) don't block the install in CI/Docker.
-RUN echo 'verifyStoreIntegrity=false' > .npmrc
-RUN echo 'minimumReleaseAge=0' >> .npmrc
-RUN echo 'minimum-release-age=0' >> .npmrc
 
 RUN pnpm install --frozen-lockfile
 
