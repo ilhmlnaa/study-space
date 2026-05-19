@@ -5,7 +5,6 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
-  // Public routes
   const publicRoutes = ["/", "/login", "/register"];
   const isPublicRoute = publicRoutes.includes(pathname);
   const isApiAuth = pathname.startsWith("/api/auth");
@@ -16,7 +15,6 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // If not authenticated, redirect to login
   if (!session) {
     const loginUrl = new URL("/login", req.nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", pathname);
@@ -25,7 +23,6 @@ export default auth((req) => {
 
   const role = session.user?.role;
 
-  // Role-based route protection
   if (pathname.startsWith("/admin") && role !== "ADMIN") {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
@@ -42,12 +39,10 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
 
-  // Room access - any authenticated user can access
   if (pathname.startsWith("/room/")) {
     return NextResponse.next();
   }
 
-  // API routes - require authentication
   if (pathname.startsWith("/api/") && !session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -56,5 +51,15 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  matcher: [
+    /*
+     * Match all request paths EXCEPT:
+     * - _next/static  (static files)
+     * - _next/image   (image optimization)
+     * - favicon.ico
+     * - public folder files (images, fonts, etc.)
+     * - files with extensions (e.g. .png .jpg .svg .ico .webp)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|otf|mp4|pdf)$).*)",
+  ],
 };

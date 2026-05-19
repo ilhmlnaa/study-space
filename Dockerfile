@@ -33,9 +33,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-
-# Enable corepack so pnpm is available in the runner image
-# (needed for db:migrate, db:seed post-deploy commands)
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 RUN addgroup --system --gid 1001 nodejs \
@@ -44,11 +41,9 @@ RUN addgroup --system --gid 1001 nodejs \
 # Copy production node_modules (pruned) + Prisma engines
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
-# Copy build output and public assets
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy server entry, app sources required at runtime, prisma schema, and config
 COPY --from=builder --chown=nextjs:nodejs /app/server.ts ./server.ts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
@@ -60,7 +55,6 @@ USER nextjs
 
 EXPOSE 3000
 
-# Health check using Node.js built-in fetch (available since Node 18)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
