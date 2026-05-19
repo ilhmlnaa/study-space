@@ -38,7 +38,6 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
-# Copy production node_modules (pruned) + Prisma engines
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
