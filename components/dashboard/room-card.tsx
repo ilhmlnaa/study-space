@@ -3,26 +3,24 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Copy, Check, Calendar } from "lucide-react";
+import { Users, Copy, Check, Calendar, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { ConfirmDialog } from "@/components/layout/confirm-dialog";
 import { AssignModeratorDialog } from "@/components/dashboard/assign-moderator-dialog";
+import { EditRoomDialog } from "@/components/dashboard/edit-room-dialog";
 
 type RoomData = {
   id: string;
   title: string;
+  description: string | null;
   topic: string | null;
   code: string;
   status: "ACTIVE" | "CLOSED";
+  whiteboardPermission: "MENTOR_ONLY" | "MENTOR_MODERATOR" | "ALL_PARTICIPANTS";
   createdAt: string;
   _count: { participants: number };
 };
@@ -36,6 +34,7 @@ export function RoomCard({ room }: RoomCardProps) {
   const [copied, setCopied] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showAssignModerator, setShowAssignModerator] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
   async function copyCode() {
@@ -56,9 +55,9 @@ export function RoomCard({ room }: RoomCardProps) {
       });
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         alert(data?.error ?? "Failed to close room.");
         return;
       }
@@ -131,6 +130,16 @@ export function RoomCard({ room }: RoomCardProps) {
             {room.status === "ACTIVE" ? (
               <Button
                 size="sm"
+                variant="outline"
+                onClick={() => setShowEdit(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : null}
+            {room.status === "ACTIVE" ? (
+              <Button
+                size="sm"
                 variant="destructive"
                 onClick={() => setShowCloseConfirm(true)}
                 disabled={isClosing}
@@ -163,6 +172,18 @@ export function RoomCard({ room }: RoomCardProps) {
         roomId={room.id}
         open={showAssignModerator}
         onOpenChange={setShowAssignModerator}
+      />
+
+      <EditRoomDialog
+        roomId={room.id}
+        initialData={{
+          title: room.title,
+          description: room.description,
+          topic: room.topic,
+          whiteboardPermission: room.whiteboardPermission,
+        }}
+        open={showEdit}
+        onOpenChange={setShowEdit}
       />
     </>
   );

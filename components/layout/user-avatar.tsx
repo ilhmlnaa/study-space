@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 
 import { cn } from "@/lib/cn";
@@ -34,6 +35,15 @@ export function UserAvatar({
   size = "md",
   className,
 }: UserAvatarProps) {
+  const [hasError, setHasError] = useState(false);
+
+  // Reset error state when image URL changes
+  useEffect(() => {
+    setHasError(false);
+  }, [image]);
+
+  const showImage = image && !hasError;
+
   return (
     <div
       className={cn(
@@ -44,13 +54,15 @@ export function UserAvatar({
       title={role ? `${name ?? "User"} · ${role}` : (name ?? "User")}
       aria-label={role ? `${name ?? "User"}, ${role}` : (name ?? "User")}
     >
-      {image ? (
+      {showImage ? (
         <Image
           src={image}
           alt={name ? `${name}'s avatar` : "User avatar"}
           width={imageSizes[size]}
           height={imageSizes[size]}
           className="h-full w-full object-cover"
+          onError={() => setHasError(true)}
+          unoptimized
         />
       ) : (
         <span>{getInitials(name)}</span>

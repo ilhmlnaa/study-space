@@ -83,9 +83,11 @@ export default async function MentorRoomsPage() {
               room={{
                 id: room.id,
                 title: room.title,
+                description: room.description,
                 topic: room.topic,
                 code: room.code,
                 status: room.status,
+                whiteboardPermission: room.whiteboardPermission,
                 createdAt: room.createdAt.toISOString(),
                 _count: { participants: room._count.participants },
               }}
