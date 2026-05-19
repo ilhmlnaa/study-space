@@ -9,6 +9,15 @@ type WhiteboardData = {
   files: any;
 };
 
+/** Sanitize appState so Excalidraw doesn't crash on non-Map collaborators */
+function sanitizeAppState(appState: any): any {
+  const { collaborators, isLoading, errorMessage, ...rest } = appState ?? {};
+  return {
+    ...rest,
+    collaborators: new Map(),
+  };
+}
+
 type UseWhiteboardOptions = {
   socket: Socket | null;
   roomId: string;
@@ -21,14 +30,16 @@ export function useWhiteboard({
   initialData,
 }: UseWhiteboardOptions) {
   const [elements, setElements] = useState<any[]>(initialData?.elements ?? []);
-  const [appState, setAppState] = useState<any>(initialData?.appState ?? {});
+  const [appState, setAppState] = useState<any>(
+    sanitizeAppState(initialData?.appState),
+  );
   const [files, setFiles] = useState<any>(initialData?.files ?? null);
 
   // Set initial data on mount or when it changes
   useEffect(() => {
     if (initialData) {
       setElements(initialData.elements ?? []);
-      setAppState(initialData.appState ?? {});
+      setAppState(sanitizeAppState(initialData.appState));
       setFiles(initialData.files ?? null);
     }
   }, [initialData]);
@@ -43,13 +54,13 @@ export function useWhiteboard({
       files?: any;
     }) => {
       if (data.elements) setElements(data.elements);
-      if (data.appState) setAppState(data.appState);
+      if (data.appState) setAppState(sanitizeAppState(data.appState));
       if (data.files) setFiles(data.files);
     };
 
     const handleCleared = () => {
       setElements([]);
-      setAppState({});
+      setAppState(sanitizeAppState(null));
       setFiles(null);
     };
 

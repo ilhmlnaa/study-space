@@ -101,9 +101,12 @@ export function ExcalidrawWhiteboard({
       <div className="relative flex-1 min-h-0">
         <Excalidraw
           initialData={{
-            elements,
-            appState,
-            files,
+            elements: elements ?? [],
+            appState: {
+              ...(appState ?? {}),
+              collaborators: new Map(), // always a Map, never a plain object
+            },
+            files: files ?? {},
           }}
           onChange={handleChange}
           viewModeEnabled={viewMode}
