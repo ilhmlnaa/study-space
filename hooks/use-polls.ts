@@ -25,20 +25,16 @@ type UsePollsOptions = {
   socket: Socket | null;
   roomId: string;
   initialPolls: Poll[];
-  currentUserId: string;
+  currentUserId: string; // kept for API consistency
 };
 
 export function usePolls({
   socket,
   roomId,
   initialPolls,
-  currentUserId,
+  currentUserId: _currentUserId,
 }: UsePollsOptions) {
   const [polls, setPolls] = useState<Poll[]>(initialPolls);
-
-  useEffect(() => {
-    setPolls(initialPolls);
-  }, [initialPolls]);
 
   useEffect(() => {
     if (!socket) return;

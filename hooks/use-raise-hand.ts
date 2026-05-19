@@ -31,12 +31,7 @@ export function useRaiseHand({
   initialRaiseHands,
   currentUserId,
 }: UseRaiseHandOptions) {
-  const [raiseHands, setRaiseHands] =
-    useState<RaiseHand[]>(initialRaiseHands);
-
-  useEffect(() => {
-    setRaiseHands(initialRaiseHands);
-  }, [initialRaiseHands]);
+  const [raiseHands, setRaiseHands] = useState<RaiseHand[]>(initialRaiseHands);
 
   useEffect(() => {
     if (!socket) return;
@@ -49,9 +44,7 @@ export function useRaiseHand({
     };
 
     const handleHandResolved = (data: { raiseHandId: string }) => {
-      setRaiseHands((prev) =>
-        prev.filter((h) => h.id !== data.raiseHandId),
-      );
+      setRaiseHands((prev) => prev.filter((h) => h.id !== data.raiseHandId));
     };
 
     socket.on("hand:raised", handleHandRaised);

@@ -31,10 +31,6 @@ export function useChat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
 
   useEffect(() => {
-    setMessages(initialMessages);
-  }, [initialMessages]);
-
-  useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (data: { message: ChatMessage }) => {

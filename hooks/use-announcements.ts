@@ -31,10 +31,6 @@ export function useAnnouncements({
     useState<Announcement[]>(initialAnnouncements);
 
   useEffect(() => {
-    setAnnouncements(initialAnnouncements);
-  }, [initialAnnouncements]);
-
-  useEffect(() => {
     if (!socket) return;
 
     const handleNewAnnouncement = (data: { announcement: Announcement }) => {

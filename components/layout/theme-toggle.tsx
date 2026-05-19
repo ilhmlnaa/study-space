@@ -11,9 +11,10 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const [mounted, setMounted] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
+  // Standard next-themes pattern to avoid hydration mismatch.
   useEffect(() => {
     setMounted(true);
   }, []);
