@@ -106,9 +106,19 @@ For Google login, fill `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from Google
 
 ### Database setup
 
+For development (quick, no migration history):
+
 ```bash
 pnpm db:generate
 pnpm db:push
+pnpm db:seed
+```
+
+For production (uses migration files):
+
+```bash
+pnpm db:generate
+pnpm db:migrate
 pnpm db:seed
 ```
 
@@ -147,7 +157,10 @@ All seeded users use the same password: `password123`.
 | `pnpm start` | Start custom server |
 | `pnpm lint` | Run ESLint |
 | `pnpm db:generate` | Generate Prisma Client |
-| `pnpm db:push` | Push Prisma schema to database |
+| `pnpm db:push` | Push schema to database (development) |
+| `pnpm db:migrate` | Run migrations (production) |
+| `pnpm db:deploy` | Alias for `db:migrate` |
+| `pnpm db:migrate:dev` | Create new migration (development) |
 | `pnpm db:seed` | Seed demo accounts |
 | `pnpm db:studio` | Open Prisma Studio |
 
