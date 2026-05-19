@@ -1,0 +1,43 @@
+name: GHCR Cleanup
+
+on:
+  schedule:
+    # Run every Sunday at 00:00 UTC
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+    inputs:
+      keep_last:
+        description: "Number of untagged versions to keep"
+        required: false
+        default: "3"
+
+jobs:
+  cleanup-untagged:
+    name: Delete Untagged Images
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete untagged images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: ${{ github.event.inputs.keep_last || 3 }}
+          delete-only-untagged-versions: true
+
+  cleanup-old-tags:
+    name: Delete Old SHA Tags
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete old sha- prefixed tags
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: 5
+          ignore-versions: "^(latest|main|v?\\d+\\.\\d+\\.\\d+.*)$"
