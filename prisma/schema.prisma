@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MENTOR
+  MODERATOR
+  STUDENT
+}
+
+enum RoomStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum WhiteboardPermission {
+  MENTOR_ONLY
+  MENTOR_MODERATOR
+  ALL_PARTICIPANTS
+}
+
+// NextAuth required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Application models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  createdRooms  Room[]            @relation("RoomCreator")
+  participants  RoomParticipant[]
+  moderating    RoomModerator[]
+  messages      Message[]
+  pollVotes     PollVote[]
+  announcements Announcement[]
+  raiseHands    RaiseHand[]
+}
+
+model Room {
+  id                    String               @id @default(cuid())
+  title                 String
+  description           String?
+  topic                 String?
+  code                  String               @unique
+  status                RoomStatus           @default(ACTIVE)
+  whiteboardPermission  WhiteboardPermission @default(MENTOR_ONLY)
+  createdById           String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  closedAt              DateTime?
+
+  createdBy    User                 @relation("RoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  participants RoomParticipant[]
+  moderators   RoomModerator[]
+  messages     Message[]
+  polls        Poll[]
+  announcements Announcement[]
+  raiseHands   RaiseHand[]
+  whiteboard   WhiteboardSnapshot?
+}
+
+model RoomParticipant {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  leftAt   DateTime?
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+}
+
+model RoomModerator {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Poll {
+  id        String   @id @default(cuid())
+  roomId    String
+  question  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  closedAt  DateTime?
+
+  room    Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  pollId String
+  text   String
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+}
+
+model PollVote {
+  id       String   @id @default(cuid())
+  pollId   String
+  optionId String
+  userId   String
+  votedAt  DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RaiseHand {
+  id         String    @id @default(cuid())
+  roomId     String
+  userId     String
+  isResolved Boolean   @default(false)
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WhiteboardSnapshot {
+  id        String   @id @default(cuid())
+  roomId    String   @unique
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
