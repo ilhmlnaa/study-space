@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart2, Hand, Megaphone, MessageSquare, Users } from "lucide-react";
+import { BarChart2, Hand, Megaphone, MessageSquare, Users, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { getDashboardPath } from "@/lib/utils";
@@ -130,6 +130,7 @@ function normalizeWhiteboardData(data: unknown) {
 export function RoomClient({ room, currentUser }: RoomClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [mobileActiveTab, setMobileActiveTab] = useState<"whiteboard" | TabId>("whiteboard");
   const [roomStatus, setRoomStatus] = useState<"ACTIVE" | "CLOSED">(
     room.status,
   );
@@ -311,9 +312,14 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
         onCloseRoom={handleCloseRoom}
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="m-3 flex min-w-0 flex-1 overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <ExcalidrawWhiteboard
+      <div className="flex flex-1 overflow-hidden flex-col">
+        <div className="flex flex-1 overflow-hidden relative">
+          <div className={cn(
+            "flex min-w-0 flex-1 overflow-hidden bg-card transition-all",
+            "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
+            mobileActiveTab !== "whiteboard" ? "hidden lg:flex" : "flex"
+          )}>
+            <ExcalidrawWhiteboard
             socket={socket}
             roomId={room.id}
             initialData={whiteboardData}
@@ -323,8 +329,11 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
           />
         </div>
 
-        <aside className="flex w-80 flex-col border-l bg-card lg:w-96">
-          <div className="flex shrink-0 overflow-x-auto border-b">
+          <aside className={cn(
+            "flex w-full flex-col bg-card lg:w-96 lg:border-l transition-all",
+            mobileActiveTab !== "whiteboard" ? "flex flex-1" : "hidden lg:flex"
+          )}>
+            <div className="hidden lg:flex shrink-0 overflow-x-auto border-b">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -394,6 +403,34 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
             )}
           </div>
         </aside>
+      </div>
+
+        {/* Mobile Bottom Navbar */}
+        <div className="flex lg:hidden shrink-0 border-t bg-card">
+          {[
+            { id: "whiteboard", label: "Board", icon: <Pencil className="h-5 w-5" /> },
+            ...TABS
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setMobileActiveTab(tab.id as "whiteboard" | TabId);
+                if (tab.id !== "whiteboard") {
+                  setActiveTab(tab.id as TabId);
+                }
+              }}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+                mobileActiveTab === tab.id
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

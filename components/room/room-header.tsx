@@ -39,20 +39,20 @@ export function RoomHeader({
   }
 
   return (
-    <header className="flex items-center gap-3 border-b bg-card px-4 py-3">
+    <header className="flex items-center gap-2 sm:gap-3 border-b bg-card px-3 sm:px-4 py-3">
       <Link href={dashboardPath}>
-        <Button variant="ghost" size="icon" aria-label="Back to dashboard">
+        <Button variant="ghost" size="icon" aria-label="Back to dashboard" className="h-8 w-8 sm:h-10 sm:w-10">
           <ArrowLeft className="h-4 w-4" />
         </Button>
       </Link>
 
-      <div className="flex flex-1 items-center gap-3 overflow-hidden">
-        <h1 className="truncate text-lg font-semibold text-foreground">
+      <div className="flex flex-1 items-center gap-2 sm:gap-3 overflow-hidden">
+        <h1 className="truncate text-base sm:text-lg font-semibold text-foreground">
           {room.title}
         </h1>
 
         {room.topic && (
-          <Badge variant="secondary" className="hidden sm:inline-flex">
+          <Badge variant="secondary" className="hidden md:inline-flex shrink-0">
             {room.topic}
           </Badge>
         )}
@@ -60,31 +60,33 @@ export function RoomHeader({
         <button
           onClick={handleCopyCode}
           className={cn(
-            "flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-xs transition-colors hover:bg-muted",
+            "flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-md border px-1.5 py-1 sm:px-2 sm:py-1 font-mono text-[10px] sm:text-xs transition-colors hover:bg-muted",
             copied && "border-green-500 text-green-600",
           )}
           title="Copy room code"
         >
-          {room.code}
+          <span>{room.code}</span>
           <Copy className="h-3 w-3" />
         </button>
 
-        <StatusBadge status={room.status} />
+        <div className="hidden sm:block shrink-0">
+          <StatusBadge status={room.status} />
+        </div>
 
-        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Users className="h-4 w-4" aria-hidden="true" />
+        <span className="flex shrink-0 items-center gap-1.5 text-xs sm:text-sm text-muted-foreground ml-auto sm:ml-0">
+          <Users className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true" />
           {participantCount}
         </span>
       </div>
 
       {room.status === "CLOSED" && (
-        <Badge variant="secondary">Read-only Mode</Badge>
+        <Badge variant="secondary" className="hidden sm:inline-flex">Read-only</Badge>
       )}
 
       {isCreator && room.status === "ACTIVE" && onCloseRoom && (
-        <Button variant="destructive" size="sm" onClick={onCloseRoom}>
-          <X className="h-4 w-4" />
-          Close Room
+        <Button variant="destructive" size="sm" onClick={onCloseRoom} className="h-8 sm:h-9 px-2 sm:px-3">
+          <X className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Close Room</span>
         </Button>
       )}
     </header>
