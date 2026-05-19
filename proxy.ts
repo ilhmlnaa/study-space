@@ -10,8 +10,9 @@ export default auth((req) => {
   const isPublicRoute = publicRoutes.includes(pathname);
   const isApiAuth = pathname.startsWith("/api/auth");
   const isApiRegister = pathname.startsWith("/api/register");
+  const isApiHealth = pathname.startsWith("/api/health");
 
-  if (isPublicRoute || isApiAuth || isApiRegister) {
+  if (isPublicRoute || isApiAuth || isApiRegister || isApiHealth) {
     return NextResponse.next();
   }
 
@@ -55,7 +56,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|public).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
 };
