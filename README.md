@@ -1,36 +1,340 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+  <img src="https://storage.hamdiv.me/project/portfolio/study-space.png" alt="StudySpace" width="100%" />
+</p>
+
+<h1 align="center">StudySpace</h1>
+
+<p align="center">
+  A collaborative learning room platform built with Next.js, PostgreSQL, Prisma, NextAuth, Socket.IO, and Excalidraw.
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#tech-stack">Tech Stack</a> ·
+  <a href="#getting-started">Getting Started</a> ·
+  <a href="#docker">Docker</a> ·
+  <a href="#api-endpoints">API</a>
+</p>
+
+---
+
+## Overview
+
+**StudySpace** is a full-stack collaborative study room application. Mentors can create rooms, students can join using a room code, and everyone can interact through realtime chat, a collaborative Excalidraw whiteboard, polling, raise hand, announcements, and participant presence.
+
+The application is built as a single full-stack Next.js app and focuses on client-server communication, authentication, relational database design, role-based access control, and realtime events.
+
+## Features
+
+- Landing page with modern LMS/SaaS-style UI
+- Email/password registration and login
+- Google OAuth login
+- Role-based dashboards for Admin, Mentor, Moderator, and Student
+- Mentor room creation with unique room codes
+- Student join room by code
+- Moderator assignment by mentor
+- Realtime room chat with message history
+- Realtime participant list
+- Collaborative Excalidraw whiteboard
+- Whiteboard snapshot persistence
+- Whiteboard permissions:
+  - `MENTOR_ONLY`
+  - `MENTOR_MODERATOR`
+  - `ALL_PARTICIPANTS`
+- Realtime polling with one vote per student
+- Raise hand and lower hand flow
+- Mentor/moderator raise hand resolution
+- Realtime announcements
+- Closed room read-only history mode
+- Light and dark mode
+- Docker and GHCR image support
+
+## Tech Stack
+
+| Area | Stack |
+|---|---|
+| Framework | Next.js App Router, React, TypeScript |
+| Styling | Tailwind CSS, next-themes, Lucide React |
+| Database | PostgreSQL |
+| ORM | Prisma |
+| Auth | NextAuth/Auth.js, Prisma Adapter, bcrypt |
+| Validation | Zod |
+| Realtime | Socket.IO |
+| Whiteboard | @excalidraw/excalidraw |
+| Package Manager | pnpm |
+| Container | Docker, Docker Compose, GHCR |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- pnpm
+- PostgreSQL
+
+### Clone and install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repository-url>
+cd study-space
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Environment variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create `.env` from `.env.example`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env
+```
 
-## Learn More
+Default local values:
 
-To learn more about Next.js, take a look at the following resources:
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/studyspace"
+NEXTAUTH_SECRET="change-this-secret"
+NEXTAUTH_URL="http://localhost:3000"
+AUTH_SECRET="change-this-secret"
+AUTH_URL="http://localhost:3000"
+AUTH_TRUST_HOST="true"
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For Google login, fill `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from Google Cloud Console.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Database setup
 
-## Deploy on Vercel
+```bash
+pnpm db:generate
+pnpm db:push
+pnpm db:seed
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Run development server
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3000`.
+
+> The app uses `server.ts` as a custom Next.js server so Socket.IO can attach to the same HTTP server.
+
+## Default Seed Accounts
+
+All seeded users use the same password: `password123`.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@studyspace.test` | `password123` |
+| Mentor | `mentor@studyspace.test` | `password123` |
+| Moderator | `moderator@studyspace.test` | `password123` |
+| Student | `student@studyspace.test` | `password123` |
+| Student Dummy | `student1@studyspace.test` | `password123` |
+| Student Dummy | `student2@studyspace.test` | `password123` |
+| Student Dummy | `student3@studyspace.test` | `password123` |
+
+## Available Scripts
+
+| Script | Description |
+|---|---|
+| `pnpm dev` | Start custom Next.js + Socket.IO development server |
+| `pnpm dev:next` | Start plain Next.js dev server without custom Socket.IO server |
+| `pnpm build` | Build production app using webpack |
+| `pnpm build:turbo` | Build using default Next.js/Turbopack build |
+| `pnpm start` | Start custom server |
+| `pnpm lint` | Run ESLint |
+| `pnpm db:generate` | Generate Prisma Client |
+| `pnpm db:push` | Push Prisma schema to database |
+| `pnpm db:seed` | Seed demo accounts |
+| `pnpm db:studio` | Open Prisma Studio |
+
+## Docker
+
+### Build locally with Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+### Use prebuilt GHCR image
+
+A prebuilt image is available at:
+
+```bash
+ghcr.io/ilhmlnaa/study-space:latest
+```
+
+Run with the production compose file:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+If the package is private, login to GHCR first:
+
+```bash
+docker login ghcr.io -u ilhmlnaa
+```
+
+### Production notes
+
+Update these variables for production:
+
+```env
+NEXTAUTH_SECRET="strong-secret"
+AUTH_SECRET="strong-secret"
+NEXTAUTH_URL="https://your-domain.com"
+AUTH_URL="https://your-domain.com"
+NEXT_PUBLIC_APP_URL="https://your-domain.com"
+AUTH_TRUST_HOST="true"
+```
+
+## Realtime Architecture
+
+StudySpace uses a custom `server.ts` to run Next.js and Socket.IO on the same HTTP server.
+
+Flow example for chat:
+
+```text
+Client emits chat:send
+  -> Socket.IO server receives event
+  -> Message is saved with Prisma
+  -> Server broadcasts chat:new to users in the room
+  -> Clients update UI without refreshing
+```
+
+Important realtime events:
+
+| Feature | Client Event | Server Event |
+|---|---|---|
+| Room presence | `room:join`, `room:leave` | `room:participants`, `room:user_joined`, `room:user_left` |
+| Chat | `chat:send` | `chat:new` |
+| Whiteboard | `whiteboard:sync`, `whiteboard:save`, `whiteboard:clear` | `whiteboard:update`, `whiteboard:cleared` |
+| Polls | `poll:create`, `poll:vote`, `poll:close` | `poll:new`, `poll:result`, `poll:closed` |
+| Raise hand | `hand:raise`, `hand:resolve` | `hand:raised`, `hand:resolved` |
+| Announcements | `announcement:send` | `announcement:new` |
+
+## API Endpoints
+
+Most endpoints require an authenticated session cookie from NextAuth/Auth.js.
+
+### Auth
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET/POST` | `/api/auth/[...nextauth]` | NextAuth handlers |
+| `POST` | `/api/register` | Register email/password user |
+
+### Users
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/users` | List users (admin only) |
+| `PATCH` | `/api/users/[id]` | Update user role (admin only) |
+| `DELETE` | `/api/users/[id]` | Delete user (admin only) |
+
+### Rooms
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms` | List rooms by current role |
+| `POST` | `/api/rooms` | Create room (mentor only) |
+| `POST` | `/api/rooms/join` | Join active room by code |
+| `GET` | `/api/rooms/[roomId]` | Get room details |
+| `PATCH` | `/api/rooms/[roomId]` | Update room (creator only) |
+| `DELETE` | `/api/rooms/[roomId]` | Delete room (admin/creator) |
+| `PATCH` | `/api/rooms/[roomId]/close` | Close room (creator only) |
+
+### Moderators
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/rooms/[roomId]/moderators` | Assign moderator |
+| `DELETE` | `/api/rooms/[roomId]/moderators/[userId]` | Remove moderator |
+
+### Messages
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms/[roomId]/messages` | Get chat history |
+| `POST` | `/api/rooms/[roomId]/messages` | Send chat message |
+
+### Polls
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms/[roomId]/polls` | Get room polls |
+| `POST` | `/api/rooms/[roomId]/polls` | Create poll (mentor only) |
+| `POST` | `/api/polls/[pollId]/vote` | Vote poll option |
+| `PATCH` | `/api/polls/[pollId]/close` | Close poll (mentor/moderator) |
+
+### Announcements
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms/[roomId]/announcements` | Get announcements |
+| `POST` | `/api/rooms/[roomId]/announcements` | Send announcement |
+
+### Raise Hand
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms/[roomId]/raise-hand` | Get raise hand list |
+| `POST` | `/api/rooms/[roomId]/raise-hand` | Raise hand |
+| `PATCH` | `/api/raise-hand/[id]` | Resolve/lower hand |
+
+### Whiteboard
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/rooms/[roomId]/whiteboard` | Get latest whiteboard snapshot |
+| `PUT` | `/api/rooms/[roomId]/whiteboard` | Save whiteboard snapshot |
+
+## Testing API with Postman
+
+Protected routes need the session cookie from the browser after login.
+
+1. Login in the browser
+2. Open DevTools > Application > Cookies
+3. Copy the NextAuth session cookie
+4. Add it to Postman request headers:
+
+```http
+Cookie: next-auth.session-token=<value>
+```
+
+Then call any protected endpoint, for example:
+
+```http
+POST http://localhost:3000/api/rooms
+Content-Type: application/json
+Cookie: next-auth.session-token=<value>
+
+{
+  "title": "Networking Class",
+  "description": "TCP/IP discussion",
+  "topic": "Computer Networking",
+  "whiteboardPermission": "MENTOR_MODERATOR"
+}
+```
+
+## Project Structure
+
+```text
+app/                  Next.js App Router pages and API routes
+components/           UI, layout, dashboard, landing, and room components
+hooks/                Realtime client hooks
+lib/                  Auth, Prisma, socket, permissions, validations, utils
+prisma/               Prisma schema and seed file
+public/               Static assets
+server.ts             Custom Next.js + Socket.IO server
+proxy.ts              Auth route protection
+```
+
+## License
+
+This project is created for academic coursework and demonstration purposes.
