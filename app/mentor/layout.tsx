@@ -27,7 +27,9 @@ export default async function MentorLayout({
         userEmail={session.user.email}
         userImage={session.user.image}
       />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
+      <main className="flex-1 overflow-y-auto p-6 pt-16 md:pt-6 lg:p-8">
+        {children}
+      </main>
     </div>
   );
 }
