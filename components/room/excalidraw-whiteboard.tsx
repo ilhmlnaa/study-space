@@ -39,12 +39,24 @@ export function ExcalidrawWhiteboard({
     [],
   );
 
+  const initialFiles = useMemo(
+    () =>
+      initialData?.files &&
+      typeof initialData.files === "object" &&
+      !Array.isArray(initialData.files)
+        ? (initialData.files as Record<string, any>)
+        : {},
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   return (
     <div className="flex flex-1 min-h-0">
       <ExcalidrawWrapper
         socket={socket}
         roomId={roomId}
         initialElements={initialElements}
+        initialFiles={initialFiles}
         canDraw={canDraw}
         isReadOnly={isReadOnly}
         isCreator={isCreator}

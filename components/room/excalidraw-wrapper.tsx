@@ -12,6 +12,7 @@ type ExcalidrawWrapperProps = {
   socket: Socket | null;
   roomId: string;
   initialElements: any[];
+  initialFiles: Record<string, any>;
   canDraw: boolean;
   isReadOnly: boolean;
   isCreator: boolean;
@@ -21,6 +22,7 @@ export default function ExcalidrawWrapper({
   socket,
   roomId,
   initialElements,
+  initialFiles,
   canDraw,
   isReadOnly,
   isCreator,
@@ -51,9 +53,16 @@ export default function ExcalidrawWrapper({
   useEffect(() => {
     if (!socket) return;
 
-    const handleUpdate = (data: { elements?: unknown[] }) => {
+    const handleUpdate = (data: {
+      elements?: unknown[];
+      files?: Record<string, any>;
+    }) => {
       if (!apiRef.current || !Array.isArray(data.elements)) return;
       isApplyingRemoteRef.current = true;
+      // Add any new files first so images render correctly
+      if (data.files && Object.keys(data.files).length > 0) {
+        apiRef.current.addFiles(Object.values(data.files));
+      }
       apiRef.current.updateScene({ elements: data.elements });
       requestAnimationFrame(() => {
         isApplyingRemoteRef.current = false;
@@ -106,7 +115,7 @@ export default function ExcalidrawWrapper({
         if (!isDrawing) {
           const now = Date.now();
           if (now - lastSyncTimeRef.current >= 200) {
-            sock.emit("whiteboard:sync", { roomId: rid, elements });
+            sock.emit("whiteboard:sync", { roomId: rid, elements, files });
             lastSyncTimeRef.current = now;
             lastSyncedVersionRef.current = version;
           }
@@ -117,7 +126,7 @@ export default function ExcalidrawWrapper({
         if (finalSyncTimerRef.current) clearTimeout(finalSyncTimerRef.current);
         finalSyncTimerRef.current = setTimeout(() => {
           if (lastSyncedVersionRef.current !== lastVersionRef.current) {
-            sock.emit("whiteboard:sync", { roomId: rid, elements });
+            sock.emit("whiteboard:sync", { roomId: rid, elements, files });
             lastSyncedVersionRef.current = lastVersionRef.current;
             lastSyncTimeRef.current = Date.now();
           }
@@ -185,6 +194,7 @@ export default function ExcalidrawWrapper({
             appState: {
               collaborators: new Map(),
             },
+            files: initialFiles,
           }}
           viewModeEnabled={viewMode}
         />
