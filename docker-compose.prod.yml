@@ -17,7 +17,7 @@ services:
   migrate:
     image: ghcr.io/ilhmlnaa/study-space:latest
     restart: "no"
-    command: ["pnpm", "db:migrate"]
+    command: ["sh", "-c", "pnpm db:migrate && pnpm db:seed"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-studyspace}
     depends_on:

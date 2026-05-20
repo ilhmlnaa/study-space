@@ -36,10 +36,7 @@ RUN pnpm exec esbuild server.ts \
 FROM node:22-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
-
-RUN npm install -g pnpm@9.15.9
-
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN npm install -g pnpm@9.15.9 prisma@6.19.3 tsx@4.22.2
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -54,14 +51,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/dist/server.js ./server.js
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-
-RUN mkdir -p /app/node_modules/.bin \
-    && printf '#!/bin/sh\nexec node /app/node_modules/prisma/build/index.js "$@"\n' > /app/node_modules/.bin/prisma \
-    && chmod +x /app/node_modules/.bin/prisma \
-    && chown -R nextjs:nodejs /app/node_modules/.bin
-
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 USER nextjs
