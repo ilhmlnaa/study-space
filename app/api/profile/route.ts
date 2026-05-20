@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -76,7 +75,6 @@ export async function PATCH(req: Request) {
 
     const body = await req.json();
 
-    // Password change request
     if (body.currentPassword !== undefined) {
       const parsed = updatePasswordSchema.safeParse(body);
       if (!parsed.success) {
@@ -121,7 +119,6 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ message: "Password updated successfully." });
     }
 
-    // Profile update request
     const parsed = updateProfileSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

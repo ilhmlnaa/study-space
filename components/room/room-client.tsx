@@ -155,8 +155,28 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const [roomStatus, setRoomStatus] = useState<"ACTIVE" | "CLOSED">(
     room.status,
   );
+  const [whiteboardPermission, setWhiteboardPermission] =
+    useState<WhiteboardPermission>(room.whiteboardPermission);
 
   const socket = useSocket(room.id, currentUser.id);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePermissionChanged = (data: {
+      roomId: string;
+      permission: WhiteboardPermission;
+    }) => {
+      if (data.roomId !== room.id) return;
+      setWhiteboardPermission(data.permission);
+    };
+
+    socket.on("whiteboard:permission:changed", handlePermissionChanged);
+
+    return () => {
+      socket.off("whiteboard:permission:changed", handlePermissionChanged);
+    };
+  }, [socket, room.id]);
 
   const initialMessages: ChatMessage[] = useMemo(
     () =>
@@ -364,8 +384,8 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const canDraw =
     !isReadOnly &&
     (isCreator ||
-      room.whiteboardPermission === "ALL_PARTICIPANTS" ||
-      (room.whiteboardPermission === "MENTOR_MODERATOR" && isModerator));
+      whiteboardPermission === "ALL_PARTICIPANTS" ||
+      (whiteboardPermission === "MENTOR_MODERATOR" && isModerator));
 
   async function handleCloseRoom() {
     try {

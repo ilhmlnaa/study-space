@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateRoomSchema } from "@/lib/validations";
+import { getIO } from "@/lib/socket";
 
 type RouteContext = {
   params: Promise<{ roomId: string }>;
@@ -12,10 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const session = await auth();
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { roomId } = await context.params;
@@ -67,10 +65,7 @@ export async function GET(_request: Request, context: RouteContext) {
     });
 
     if (!room) {
-      return NextResponse.json(
-        { error: "Room not found." },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Room not found." }, { status: 404 });
     }
 
     return NextResponse.json({ room });
@@ -88,10 +83,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const session = await auth();
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { roomId } = await context.params;
@@ -102,10 +94,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
 
     if (!room) {
-      return NextResponse.json(
-        { error: "Room not found." },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Room not found." }, { status: 404 });
     }
 
     if (
@@ -152,6 +141,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
 
+    if (parsed.data.whiteboardPermission) {
+      const io = getIO();
+      if (io) {
+        io.to(roomId).emit("whiteboard:permission:changed", {
+          roomId,
+          permission: parsed.data.whiteboardPermission,
+        });
+      }
+    }
+
     return NextResponse.json({ room: updated });
   } catch (error) {
     console.error("[PATCH /api/rooms/[roomId]]", error);
@@ -167,10 +166,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const session = await auth();
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { roomId } = await context.params;
@@ -181,10 +177,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     });
 
     if (!room) {
-      return NextResponse.json(
-        { error: "Room not found." },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Room not found." }, { status: 404 });
     }
 
     const isAdmin = session.user.role === "ADMIN";

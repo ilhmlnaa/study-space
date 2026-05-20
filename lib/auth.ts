@@ -20,7 +20,6 @@ declare module "next-auth" {
   }
 }
 
-// JWT token type is handled via type assertions in callbacks
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),

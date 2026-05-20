@@ -5,16 +5,6 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-/**
- * Health check endpoint.
- *
- * Returns:
- *   200 if the server is up and the database is reachable
- *   503 if the database query fails
- *
- * Used by Docker `HEALTHCHECK` and external monitors. Keeps the payload
- * small and avoids any auth so probes can hit it without credentials.
- */
 export async function GET() {
   const startedAt = Date.now();
 

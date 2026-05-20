@@ -6,7 +6,6 @@ export type SocketServer = SocketIOServer;
 
 let io: SocketIOServer | null = null;
 
-// Track socket-to-room mapping for disconnect cleanup
 const socketRoomMap = new Map<string, { roomId: string; userId: string }>();
 
 export function getIO(): SocketIOServer | null {
@@ -34,7 +33,6 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       const { roomId, userId } = data;
       socket.join(roomId);
 
-      // Track this socket's room membership for disconnect cleanup
       socketRoomMap.set(socket.id, { roomId, userId });
 
       try {
@@ -44,7 +42,6 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
         });
 
         if (user) {
-          // Update leftAt to null (re-joining)
           await prisma.roomParticipant.upsert({
             where: { roomId_userId: { roomId, userId } },
             update: { leftAt: null },
@@ -52,8 +49,7 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
           });
 
           socket.to(roomId).emit("room:user_joined", { user });
-
-          // Send current participants list
+          
           const participants = await prisma.roomParticipant.findMany({
             where: { roomId, leftAt: null },
             include: {
@@ -78,8 +74,7 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       async (data: { roomId: string; userId: string }) => {
         const { roomId, userId } = data;
         socket.leave(roomId);
-
-        // Remove from tracking map to prevent double cleanup on disconnect
+        
         socketRoomMap.delete(socket.id);
 
         try {
@@ -147,7 +142,6 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       },
     );
 
-    // Whiteboard save (debounced on client side)
     socket.on(
       "whiteboard:save",
       async (data: {
