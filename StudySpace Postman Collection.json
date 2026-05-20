@@ -1,0 +1,667 @@
+{
+  "info": {
+    "name": "StudySpace API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminEmail", "value": "admin@studyspace.test" },
+    { "key": "mentorEmail", "value": "mentor@studyspace.test" },
+    { "key": "studentEmail", "value": "student@studyspace.test" },
+    { "key": "password", "value": "password123" },
+    { "key": "roomId", "value": "" },
+    { "key": "roomCode", "value": "" },
+    { "key": "pollId", "value": "" },
+    { "key": "pollOptionId", "value": "" },
+    { "key": "targetUserId", "value": "" },
+    { "key": "newUserEmail", "value": "test@studyspace.test" }
+  ],
+  "item": [
+    {
+      "name": "1. Autentikasi",
+      "item": [
+        {
+          "name": "1a. Register User Baru",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate unique email to avoid duplicate conflicts on re-run",
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set('newUserEmail', `test_${ts}@studyspace.test`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Response has user data', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.expect(json).to.have.property('email');",
+                  "  pm.expect(json.role).to.eql('STUDENT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Student\",\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
+            },
+            "url": "{{baseUrl}}/api/register"
+          }
+        },
+        {
+          "name": "1b. Register Email Duplikat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('Error message correct', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.include('already exists');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Student\",\n  \"email\": \"student@studyspace.test\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
+            },
+            "url": "{{baseUrl}}/api/register"
+          }
+        },
+        {
+          "name": "1c. Register Validasi Gagal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has field errors', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('details');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"AB\",\n  \"email\": \"invalid-email\",\n  \"password\": \"123\",\n  \"confirmPassword\": \"456\"\n}"
+            },
+            "url": "{{baseUrl}}/api/register"
+          }
+        },
+        {
+          "name": "1d. Login sebagai Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Session cookie tersimpan', () => {",
+                  "  const cookies = pm.cookies.toObject();",
+                  "  const hasSession = cookies['next-auth.session-token'] || cookies['__Secure-next-auth.session-token'];",
+                  "  pm.expect(hasSession).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{adminEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Management (Admin)",
+      "item": [
+        {
+          "name": "2a. Login sebagai Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Admin berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{adminEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "2b. Lihat Semua User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response adalah array', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "  pm.expect(json.length).to.be.greaterThan(0);",
+                  "  // Simpan userId student untuk test berikutnya",
+                  "  const student = json.find(u => u.role === 'STUDENT');",
+                  "  if (student) pm.collectionVariables.set('targetUserId', student.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "2c. Ubah Role User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Role terupdate', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.role).to.eql('MENTOR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"MENTOR\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}"
+          }
+        },
+        {
+          "name": "2d. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{studentEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "2e. Akses /api/users sebagai Student (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Room Management",
+      "item": [
+        {
+          "name": "3a. Login sebagai Mentor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{mentorEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "3b. Buat Room Baru",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Room memiliki code unik', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json.code).to.match(/^STUDY-/);",
+                  "  // Simpan roomId dan roomCode untuk test berikutnya",
+                  "  pm.collectionVariables.set('roomId', json.id);",
+                  "  pm.collectionVariables.set('roomCode', json.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Belajar JavaScript\",\n  \"description\": \"Sesi belajar JS dasar\",\n  \"topic\": \"JavaScript\",\n  \"whiteboardPermission\": \"ALL_PARTICIPANTS\"\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms"
+          }
+        },
+        {
+          "name": "3c. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{studentEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "3d. Join Room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Response memiliki data room', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('room');",
+                  "  pm.expect(json.room.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{roomCode}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms/join"
+          }
+        },
+        {
+          "name": "3e. Join Room Kode Salah",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('Error message correct', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"XXXX-0000\"\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms/join"
+          }
+        },
+        {
+          "name": "3f. Login sebagai Mentor (untuk close room)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{mentorEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "3g. Tutup Room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Room status CLOSED', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.room.status).to.eql('CLOSED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/rooms/{{roomId}}/close"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Polling",
+      "item": [
+        {
+          "name": "4a. Login sebagai Mentor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{mentorEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "4b. Buat Room untuk Poll",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('roomId', json.id);",
+                  "pm.collectionVariables.set('roomCode', json.code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Room untuk Poll Test\",\n  \"description\": \"Testing poll\",\n  \"topic\": \"Testing\",\n  \"whiteboardPermission\": \"ALL_PARTICIPANTS\"\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms"
+          }
+        },
+        {
+          "name": "4c. Buat Poll",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Poll memiliki options', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.expect(json.options).to.be.an('array').with.lengthOf(3);",
+                  "  // Simpan pollId dan optionId pertama",
+                  "  pm.collectionVariables.set('pollId', json.id);",
+                  "  pm.collectionVariables.set('pollOptionId', json.options[0].id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Do you understand the topic?\",\n  \"options\": [\"Yes, I understand\", \"Not yet\", \"Need more examples\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms/{{roomId}}/polls"
+          }
+        },
+        {
+          "name": "4d. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "{{studentEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "4e. Join Room (agar bisa vote)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Join room berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{roomCode}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/rooms/join"
+          }
+        },
+        {
+          "name": "4f. Vote Poll",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Vote count terupdate', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.hasVoted).to.be.true;",
+                  "  pm.expect(json.userVotedOptionId).to.not.be.null;",
+                  "  const votedOption = json.options.find(o => o.id === json.userVotedOptionId);",
+                  "  pm.expect(votedOption.voteCount).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"optionId\": \"{{pollOptionId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/polls/{{pollId}}/vote"
+          }
+        },
+        {
+          "name": "4g. Vote Duplikat (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('Error message correct', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.include('already voted');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"optionId\": \"{{pollOptionId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/polls/{{pollId}}/vote"
+          }
+        }
+      ]
+    }
+  ]
+}

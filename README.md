@@ -309,6 +309,8 @@ Most endpoints require an authenticated session cookie from NextAuth/Auth.js.
 
 ## Testing API with Postman
 
+A Postman collection is included in the root of this project: `StudySpace Postman Collection.json`. Import it into Postman to quickly test all available API endpoints.
+
 Protected routes need the session cookie from the browser after login.
 
 1. Login in the browser
