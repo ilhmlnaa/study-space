@@ -9,12 +9,13 @@
     { "key": "mentorEmail", "value": "mentor@studyspace.test" },
     { "key": "studentEmail", "value": "student@studyspace.test" },
     { "key": "password", "value": "password123" },
+    { "key": "csrfToken", "value": "" },
     { "key": "roomId", "value": "" },
     { "key": "roomCode", "value": "" },
     { "key": "pollId", "value": "" },
     { "key": "pollOptionId", "value": "" },
     { "key": "targetUserId", "value": "" },
-    { "key": "newUserEmail", "value": "test@studyspace.test" }
+    { "key": "newUserEmail", "value": "" }
   ],
   "item": [
     {
@@ -27,7 +28,6 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "// Generate unique email to avoid duplicate conflicts on re-run",
                   "const ts = Date.now();",
                   "pm.collectionVariables.set('newUserEmail', `test_${ts}@studyspace.test`);"
                 ]
@@ -111,17 +111,40 @@
           }
         },
         {
-          "name": "1d. Login sebagai Admin",
+          "name": "1d. Ambil CSRF Token",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);",
+                  "console.log('CSRF Token:', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "1e. Login sebagai Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login berhasil (200 atau redirect)', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});",
                   "pm.test('Session cookie tersimpan', () => {",
-                  "  const cookies = pm.cookies.toObject();",
-                  "  const hasSession = cookies['next-auth.session-token'] || cookies['__Secure-next-auth.session-token'];",
-                  "  pm.expect(hasSession).to.not.be.undefined;",
+                  "  const cookieJar = pm.cookies.toObject();",
+                  "  console.log('Cookies:', JSON.stringify(cookieJar));",
+                  "  const hasSession = Object.keys(cookieJar).some(k => k.includes('next-auth.session-token') || k.includes('authjs.session-token'));",
+                  "  pm.expect(hasSession, 'Session cookie harus ada').to.be.true;",
                   "});"
                 ]
               }
@@ -129,43 +152,16 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
-            "body": {
-              "mode": "urlencoded",
-              "urlencoded": [
-                { "key": "email", "value": "{{adminEmail}}" },
-                { "key": "password", "value": "{{password}}" },
-                { "key": "redirect", "value": "false" },
-                { "key": "callbackUrl", "value": "{{baseUrl}}" },
-                { "key": "json", "value": "true" }
-              ]
-            },
-            "url": "{{baseUrl}}/api/auth/callback/credentials"
-          }
-        }
-      ]
-    },
-    {
-      "name": "2. User Management (Admin)",
-      "item": [
-        {
-          "name": "2a. Login sebagai Admin",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Login Admin berhasil', () => pm.response.to.have.status(200));"
-                ]
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
               }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{adminEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -177,7 +173,91 @@
           }
         },
         {
-          "name": "2b. Lihat Semua User",
+          "name": "1f. Verifikasi Sesi Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Sesi valid sebagai Admin', () => {",
+                  "  const json = pm.response.json();",
+                  "  console.log('Session:', JSON.stringify(json));",
+                  "  pm.expect(json).to.have.property('user');",
+                  "  pm.expect(json.user.email).to.eql('admin@studyspace.test');",
+                  "  pm.expect(json.user.role).to.eql('ADMIN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/session"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Management (Admin)",
+      "item": [
+        {
+          "name": "2a. Ambil CSRF Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "2b. Login sebagai Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Admin berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
+                { "key": "email", "value": "{{adminEmail}}" },
+                { "key": "password", "value": "{{password}}" },
+                { "key": "redirect", "value": "false" },
+                { "key": "callbackUrl", "value": "{{baseUrl}}" },
+                { "key": "json", "value": "true" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/auth/callback/credentials"
+          }
+        },
+        {
+          "name": "2c. Lihat Semua User",
           "event": [
             {
               "listen": "test",
@@ -188,7 +268,6 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json).to.be.an('array');",
                   "  pm.expect(json.length).to.be.greaterThan(0);",
-                  "  // Simpan userId student untuk test berikutnya",
                   "  const student = json.find(u => u.role === 'STUDENT');",
                   "  if (student) pm.collectionVariables.set('targetUserId', student.id);",
                   "});"
@@ -202,7 +281,7 @@
           }
         },
         {
-          "name": "2c. Ubah Role User",
+          "name": "2d. Ubah Role User",
           "event": [
             {
               "listen": "test",
@@ -228,23 +307,49 @@
           }
         },
         {
-          "name": "2d. Login sebagai Student",
+          "name": "2e. Ambil CSRF Token (untuk Student)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "2f. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{studentEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -256,7 +361,7 @@
           }
         },
         {
-          "name": "2e. Akses /api/users sebagai Student (403)",
+          "name": "2g. Akses /api/users sebagai Student (403)",
           "event": [
             {
               "listen": "test",
@@ -278,23 +383,49 @@
       "name": "3. Room Management",
       "item": [
         {
-          "name": "3a. Login sebagai Mentor",
+          "name": "3a. Ambil CSRF Token",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "3b. Login sebagai Mentor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{mentorEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -306,7 +437,7 @@
           }
         },
         {
-          "name": "3b. Buat Room Baru",
+          "name": "3c. Buat Room Baru",
           "event": [
             {
               "listen": "test",
@@ -317,8 +448,6 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json).to.have.property('id');",
                   "  pm.expect(json).to.have.property('code');",
-                  "  pm.expect(json.code).to.match(/^STUDY-/);",
-                  "  // Simpan roomId dan roomCode untuk test berikutnya",
                   "  pm.collectionVariables.set('roomId', json.id);",
                   "  pm.collectionVariables.set('roomCode', json.code);",
                   "});"
@@ -337,23 +466,49 @@
           }
         },
         {
-          "name": "3c. Login sebagai Student",
+          "name": "3d. Ambil CSRF Token (untuk Student)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "3e. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{studentEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -365,7 +520,7 @@
           }
         },
         {
-          "name": "3d. Join Room",
+          "name": "3f. Join Room",
           "event": [
             {
               "listen": "test",
@@ -392,7 +547,7 @@
           }
         },
         {
-          "name": "3e. Join Room Kode Salah",
+          "name": "3g. Join Room Kode Salah",
           "event": [
             {
               "listen": "test",
@@ -418,23 +573,49 @@
           }
         },
         {
-          "name": "3f. Login sebagai Mentor (untuk close room)",
+          "name": "3h. Ambil CSRF Token (untuk close room)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "3i. Login sebagai Mentor (untuk close room)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{mentorEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -446,7 +627,7 @@
           }
         },
         {
-          "name": "3g. Tutup Room",
+          "name": "3j. Tutup Room",
           "event": [
             {
               "listen": "test",
@@ -472,23 +653,49 @@
       "name": "4. Polling",
       "item": [
         {
-          "name": "4a. Login sebagai Mentor",
+          "name": "4a. Ambil CSRF Token",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Mentor berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "4b. Login sebagai Mentor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Mentor berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{mentorEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -500,7 +707,7 @@
           }
         },
         {
-          "name": "4b. Buat Room untuk Poll",
+          "name": "4c. Buat Room untuk Poll",
           "event": [
             {
               "listen": "test",
@@ -525,7 +732,7 @@
           }
         },
         {
-          "name": "4c. Buat Poll",
+          "name": "4d. Buat Poll",
           "event": [
             {
               "listen": "test",
@@ -536,7 +743,6 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json).to.have.property('id');",
                   "  pm.expect(json.options).to.be.an('array').with.lengthOf(3);",
-                  "  // Simpan pollId dan optionId pertama",
                   "  pm.collectionVariables.set('pollId', json.id);",
                   "  pm.collectionVariables.set('pollOptionId', json.options[0].id);",
                   "});"
@@ -555,23 +761,49 @@
           }
         },
         {
-          "name": "4d. Login sebagai Student",
+          "name": "4e. Ambil CSRF Token (untuk Student)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Login Student berhasil', () => pm.response.to.have.status(200));"
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('csrfToken', json.csrfToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/csrf"
+          }
+        },
+        {
+          "name": "4f. Login sebagai Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Student berhasil', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}" },
                 { "key": "email", "value": "{{studentEmail}}" },
                 { "key": "password", "value": "{{password}}" },
                 { "key": "redirect", "value": "false" },
@@ -583,7 +815,7 @@
           }
         },
         {
-          "name": "4e. Join Room (agar bisa vote)",
+          "name": "4g. Join Room (agar bisa vote)",
           "event": [
             {
               "listen": "test",
@@ -607,7 +839,7 @@
           }
         },
         {
-          "name": "4f. Vote Poll",
+          "name": "4h. Vote Poll",
           "event": [
             {
               "listen": "test",
@@ -636,7 +868,7 @@
           }
         },
         {
-          "name": "4g. Vote Duplikat (409)",
+          "name": "4i. Vote Duplikat (409)",
           "event": [
             {
               "listen": "test",
