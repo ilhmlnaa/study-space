@@ -1,20 +1,20 @@
-<p align="center">
-  <img src="https://storage.hamdiv.me/project/portfolio/study-space.png" alt="StudySpace" width="100%" />
+<div align="center">
+
+<img src="https://storage.hamdiv.me/project/portfolio/study-space.png" alt="StudySpace" width="100%" style="border-radius: 12px;" />
+
+<p>
+  <img src="https://img.shields.io/badge/Next.js-15+-000000?style=flat-square&logo=nextdotjs&logoColor=white" alt="Next.js">
+  <img src="https://img.shields.io/badge/TypeScript-5+-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma&logoColor=white" alt="Prisma">
+  <img src="https://img.shields.io/badge/NextAuth-Auth-000000?style=flat-square&logo=auth0&logoColor=white" alt="NextAuth">
+  <img src="https://img.shields.io/badge/Socket.IO-Realtime-010101?style=flat-square&logo=socketdotio&logoColor=white" alt="Socket.IO">
+  <img src="https://img.shields.io/badge/Excalidraw-Whiteboard-6965DB?style=flat-square&logo=excalidraw&logoColor=white" alt="Excalidraw">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-v3-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
 </p>
 
-<h1 align="center">StudySpace</h1>
-
-<p align="center">
-  A collaborative learning room platform built with Next.js, PostgreSQL, Prisma, NextAuth, Socket.IO, and Excalidraw.
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#tech-stack">Tech Stack</a> ·
-  <a href="#getting-started">Getting Started</a> ·
-  <a href="#docker">Docker</a> ·
-  <a href="#api-endpoints">API</a>
-</p>
+</div>
 
 ---
 
