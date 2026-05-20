@@ -444,12 +444,20 @@
               "script": {
                 "exec": [
                   "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
                   "pm.test('Room memiliki code unik', () => {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json).to.have.property('id');",
-                  "  pm.expect(json).to.have.property('code');",
-                  "  pm.collectionVariables.set('roomId', json.id);",
-                  "  pm.collectionVariables.set('roomCode', json.code);",
+                  "    const json = pm.response.json();",
+                  "    console.log('Create room response:', JSON.stringify(json));",
+                  "",
+                  "    pm.expect(json).to.have.property('room');",
+                  "    pm.expect(json.room).to.have.property('id');",
+                  "    pm.expect(json.room).to.have.property('code');",
+                  "",
+                  "    pm.collectionVariables.set('roomId', json.room.id);",
+                  "    pm.collectionVariables.set('roomCode', json.room.code);",
+                  "",
+                  "    console.log('roomId saved:', json.room.id);",
+                  "    console.log('roomCode saved:', json.room.code);",
                   "});"
                 ]
               }
@@ -714,9 +722,13 @@
               "script": {
                 "exec": [
                   "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
                   "const json = pm.response.json();",
-                  "pm.collectionVariables.set('roomId', json.id);",
-                  "pm.collectionVariables.set('roomCode', json.code);"
+                  "pm.collectionVariables.set('roomId', json.room.id);",
+                  "pm.collectionVariables.set('roomCode', json.room.code);",
+                  "",
+                  "console.log('roomId saved:', json.room.id);",
+                  "console.log('roomCode saved:', json.room.code);"
                 ]
               }
             }
