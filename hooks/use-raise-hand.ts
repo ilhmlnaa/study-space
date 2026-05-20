@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 
 export type RaiseHand = {
@@ -23,6 +23,8 @@ type UseRaiseHandOptions = {
   roomId: string;
   initialRaiseHands: RaiseHand[];
   currentUserId: string;
+  onHandRaised?: (raiseHand: RaiseHand) => void;
+  onHandResolved?: (raiseHandId: string) => void;
 };
 
 export function useRaiseHand({
@@ -30,8 +32,18 @@ export function useRaiseHand({
   roomId,
   initialRaiseHands,
   currentUserId,
+  onHandRaised,
+  onHandResolved,
 }: UseRaiseHandOptions) {
   const [raiseHands, setRaiseHands] = useState<RaiseHand[]>(initialRaiseHands);
+  const onHandRaisedRef = useRef(onHandRaised);
+  const onHandResolvedRef = useRef(onHandResolved);
+  useEffect(() => {
+    onHandRaisedRef.current = onHandRaised;
+  }, [onHandRaised]);
+  useEffect(() => {
+    onHandResolvedRef.current = onHandResolved;
+  }, [onHandResolved]);
 
   useEffect(() => {
     if (!socket) return;
@@ -41,10 +53,12 @@ export function useRaiseHand({
         if (prev.some((h) => h.id === data.raiseHand.id)) return prev;
         return [data.raiseHand, ...prev];
       });
+      onHandRaisedRef.current?.(data.raiseHand);
     };
 
     const handleHandResolved = (data: { raiseHandId: string }) => {
       setRaiseHands((prev) => prev.filter((h) => h.id !== data.raiseHandId));
+      onHandResolvedRef.current?.(data.raiseHandId);
     };
 
     socket.on("hand:raised", handleHandRaised);

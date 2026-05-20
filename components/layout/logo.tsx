@@ -10,13 +10,6 @@ type LogoProps = {
   priority?: boolean;
 };
 
-/**
- * Brand logo for StudySpace.
- *
- * Uses the static image at `/logo.png` and optionally renders the wordmark
- * next to it. Pass `size` to control the icon dimension (px). The wordmark
- * scales loosely with the icon size when `withText` is true.
- */
 export function Logo({
   size = 32,
   withText = true,

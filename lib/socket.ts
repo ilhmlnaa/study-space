@@ -232,11 +232,12 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       async (data: { roomId: string; raiseHandId: string }) => {
         const { roomId, raiseHandId } = data;
         try {
-          const resolved = await prisma.raiseHand.update({
+          await prisma.raiseHand.update({
             where: { id: raiseHandId },
             data: { isResolved: true, resolvedAt: new Date() },
           });
-          io!.to(roomId).emit("hand:resolved", { raiseHand: resolved });
+          // emit raiseHandId so the client filter in use-raise-hand.ts works correctly
+          io!.to(roomId).emit("hand:resolved", { raiseHandId });
         } catch (err) {
           console.error("[Socket] hand:resolve error", err);
         }

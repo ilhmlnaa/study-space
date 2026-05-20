@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart2, Hand, Megaphone, MessageSquare, Users, Pencil } from "lucide-react";
+import {
+  BarChart2,
+  Hand,
+  Megaphone,
+  MessageSquare,
+  Users,
+  Pencil,
+} from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { getDashboardPath } from "@/lib/utils";
@@ -86,7 +93,7 @@ type RoomClientProps = {
 
 type TabId = "chat" | "participants" | "polls" | "raise-hand" | "announcements";
 
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+const TAB_DEFS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
   { id: "participants", label: "People", icon: <Users className="h-4 w-4" /> },
   { id: "polls", label: "Polls", icon: <BarChart2 className="h-4 w-4" /> },
@@ -97,6 +104,8 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
     icon: <Megaphone className="h-4 w-4" />,
   },
 ];
+
+type BadgeCounts = Record<TabId, number>;
 
 function toIsoString(value: Date | string | null): string | null {
   if (!value) return null;
@@ -130,7 +139,19 @@ function normalizeWhiteboardData(data: unknown) {
 export function RoomClient({ room, currentUser }: RoomClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("chat");
-  const [mobileActiveTab, setMobileActiveTab] = useState<"whiteboard" | TabId>("whiteboard");
+  const [mobileActiveTab, setMobileActiveTab] = useState<"whiteboard" | TabId>(
+    "whiteboard",
+  );
+  const activeTabRef = useRef<TabId>("chat");
+  const mobileActiveTabRef = useRef<"whiteboard" | TabId>("whiteboard");
+  const isDesktopRef = useRef(false);
+  const [badges, setBadges] = useState<BadgeCounts>({
+    chat: 0,
+    participants: 0,
+    polls: 0,
+    "raise-hand": 0,
+    announcements: 0,
+  });
   const [roomStatus, setRoomStatus] = useState<"ACTIVE" | "CLOSED">(
     room.status,
   );
@@ -232,11 +253,54 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     [room.whiteboard?.data],
   );
 
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    mobileActiveTabRef.current = mobileActiveTab;
+  }, [mobileActiveTab]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    isDesktopRef.current = mq.matches;
+    const handler = (e: MediaQueryListEvent) => {
+      isDesktopRef.current = e.matches;
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  function isTabVisible(tabId: TabId) {
+    if (isDesktopRef.current) {
+      return activeTabRef.current === tabId;
+    }
+    return (
+      activeTabRef.current === tabId && mobileActiveTabRef.current === tabId
+    );
+  }
+
+  function incrementBadge(tabId: TabId) {
+    setBadges((prev) => ({ ...prev, [tabId]: prev[tabId] + 1 }));
+  }
+
+  function clearBadge(tabId: TabId) {
+    setBadges((prev) => ({ ...prev, [tabId]: 0 }));
+  }
+
+  function handleTabChange(tabId: TabId) {
+    setActiveTab(tabId);
+    clearBadge(tabId);
+  }
+
   const { messages, sendMessage } = useChat({
     socket,
     roomId: room.id,
     userId: currentUser.id,
     initialMessages,
+    onNewMessage: () => {
+      if (!isTabVisible("chat")) incrementBadge("chat");
+    },
   });
 
   const { participants } = useParticipants({
@@ -249,6 +313,9 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     roomId: room.id,
     initialPolls,
     currentUserId: currentUser.id,
+    onNewPoll: () => {
+      if (!isTabVisible("polls")) incrementBadge("polls");
+    },
   });
 
   const { raiseHands, raiseHand, resolveHand, userHasActiveHand } =
@@ -257,13 +324,24 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
       roomId: room.id,
       initialRaiseHands,
       currentUserId: currentUser.id,
+      onHandRaised: () => {
+        if (!isTabVisible("raise-hand")) incrementBadge("raise-hand");
+      },
+      onHandResolved: () => {
+        // — handled via the raiseHands-derived badge below
+      },
     });
 
   const { announcements, sendAnnouncement } = useAnnouncements({
     socket,
     roomId: room.id,
     initialAnnouncements,
+    onNewAnnouncement: () => {
+      if (!isTabVisible("announcements")) incrementBadge("announcements");
+    },
   });
+
+  const unresolvedHandCount = raiseHands.filter((h) => !h.isResolved).length;
 
   const isCreator = currentUser.id === room.createdById;
   const isModerator = room.moderators.some((m) => m.userId === currentUser.id);
@@ -274,6 +352,14 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const canClosePoll = (isCreator || isModerator) && !isReadOnly;
   const canResolveRaiseHand = (isCreator || isModerator) && !isReadOnly;
   const canSendAnnouncement = (isCreator || isModerator) && !isReadOnly;
+
+  const TABS = TAB_DEFS.map((tab) => {
+    let badge = badges[tab.id];
+    if (tab.id === "raise-hand" && canResolveRaiseHand) {
+      badge = unresolvedHandCount;
+    }
+    return { ...tab, badge };
+  });
 
   const canDraw =
     !isReadOnly &&
@@ -314,119 +400,144 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
 
       <div className="flex flex-1 overflow-hidden flex-col">
         <div className="flex flex-1 overflow-hidden relative">
-          <div className={cn(
-            "flex min-w-0 flex-1 overflow-hidden bg-card transition-all",
-            "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-            mobileActiveTab !== "whiteboard" ? "hidden lg:flex" : "flex"
-          )}>
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 overflow-hidden bg-card transition-all",
+              "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
+              mobileActiveTab !== "whiteboard" ? "hidden lg:flex" : "flex",
+            )}
+          >
             <ExcalidrawWhiteboard
-            socket={socket}
-            roomId={room.id}
-            initialData={whiteboardData}
-            canDraw={canDraw}
-            isReadOnly={isReadOnly}
-            isCreator={isCreator}
-          />
-        </div>
+              socket={socket}
+              roomId={room.id}
+              initialData={whiteboardData}
+              canDraw={canDraw}
+              isReadOnly={isReadOnly}
+              isCreator={isCreator}
+            />
+          </div>
 
-          <aside className={cn(
-            "flex w-full flex-col bg-card lg:w-96 lg:border-l transition-all",
-            mobileActiveTab !== "whiteboard" ? "flex flex-1" : "hidden lg:flex"
-          )}>
+          <aside
+            className={cn(
+              "flex w-full flex-col bg-card lg:w-96 lg:border-l transition-all",
+              mobileActiveTab !== "whiteboard"
+                ? "flex flex-1"
+                : "hidden lg:flex",
+            )}
+          >
             <div className="hidden lg:flex shrink-0 overflow-x-auto border-b">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-colors",
-                  activeTab === tab.id
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-selected={activeTab === tab.id}
-                role="tab"
-                type="button"
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={cn(
+                    "relative flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-colors",
+                    activeTab === tab.id
+                      ? "border-b-2 border-primary text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-selected={activeTab === tab.id}
+                  role="tab"
+                  type="button"
+                >
+                  <span className="relative">
+                    {tab.icon}
+                    {tab.badge > 0 && (
+                      <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
+                        {tab.badge > 99 ? "99+" : tab.badge}
+                      </span>
+                    )}
+                  </span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex-1 overflow-hidden">
-            {activeTab === "chat" && (
-              <ChatPanel
-                messages={messages}
-                onSendMessage={sendMessage}
-                isReadOnly={isReadOnly}
-                currentUserId={currentUser.id}
-              />
-            )}
+            <div className="flex-1 overflow-hidden">
+              {activeTab === "chat" && (
+                <ChatPanel
+                  messages={messages}
+                  onSendMessage={sendMessage}
+                  isReadOnly={isReadOnly}
+                  currentUserId={currentUser.id}
+                />
+              )}
 
-            {activeTab === "participants" && (
-              <ParticipantPanel participants={participants} />
-            )}
+              {activeTab === "participants" && (
+                <ParticipantPanel participants={participants} />
+              )}
 
-            {activeTab === "polls" && (
-              <PollPanel
-                polls={polls}
-                onCreatePoll={createPoll}
-                onVotePoll={votePoll}
-                onClosePoll={closePoll}
-                isReadOnly={isReadOnly}
-                currentUserId={currentUser.id}
-                canCreatePoll={canCreatePoll}
-                canClosePoll={canClosePoll}
-              />
-            )}
+              {activeTab === "polls" && (
+                <PollPanel
+                  polls={polls}
+                  onCreatePoll={createPoll}
+                  onVotePoll={votePoll}
+                  onClosePoll={closePoll}
+                  isReadOnly={isReadOnly}
+                  currentUserId={currentUser.id}
+                  canCreatePoll={canCreatePoll}
+                  canClosePoll={canClosePoll}
+                />
+              )}
 
-            {activeTab === "raise-hand" && (
-              <RaiseHandPanel
-                raiseHands={raiseHands}
-                onRaiseHand={raiseHand}
-                onResolveHand={resolveHand}
-                isReadOnly={isReadOnly}
-                currentUserId={currentUser.id}
-                canResolve={canResolveRaiseHand}
-                userHasActiveHand={userHasActiveHand}
-              />
-            )}
+              {activeTab === "raise-hand" && (
+                <RaiseHandPanel
+                  raiseHands={raiseHands}
+                  onRaiseHand={raiseHand}
+                  onResolveHand={resolveHand}
+                  isReadOnly={isReadOnly}
+                  currentUserId={currentUser.id}
+                  canResolve={canResolveRaiseHand}
+                  userHasActiveHand={userHasActiveHand}
+                />
+              )}
 
-            {activeTab === "announcements" && (
-              <AnnouncementPanel
-                announcements={announcements}
-                onSendAnnouncement={sendAnnouncement}
-                isReadOnly={isReadOnly}
-                canSendAnnouncement={canSendAnnouncement}
-              />
-            )}
-          </div>
-        </aside>
-      </div>
+              {activeTab === "announcements" && (
+                <AnnouncementPanel
+                  announcements={announcements}
+                  onSendAnnouncement={sendAnnouncement}
+                  isReadOnly={isReadOnly}
+                  canSendAnnouncement={canSendAnnouncement}
+                />
+              )}
+            </div>
+          </aside>
+        </div>
 
         {/* Mobile Bottom Navbar */}
         <div className="flex lg:hidden shrink-0 border-t bg-card">
           {[
-            { id: "whiteboard", label: "Board", icon: <Pencil className="h-5 w-5" /> },
-            ...TABS
+            {
+              id: "whiteboard",
+              label: "Board",
+              icon: <Pencil className="h-5 w-5" />,
+              badge: 0,
+            },
+            ...TABS,
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => {
                 setMobileActiveTab(tab.id as "whiteboard" | TabId);
                 if (tab.id !== "whiteboard") {
-                  setActiveTab(tab.id as TabId);
+                  handleTabChange(tab.id as TabId);
                 }
               }}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+                "relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
                 mobileActiveTab === tab.id
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {tab.icon}
+              <span className="relative">
+                {tab.icon}
+                {tab.badge > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
+                    {tab.badge > 99 ? "99+" : tab.badge}
+                  </span>
+                )}
+              </span>
               {tab.label}
             </button>
           ))}

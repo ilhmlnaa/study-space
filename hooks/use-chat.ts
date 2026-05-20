@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 
 export type ChatMessage = {
@@ -20,6 +20,7 @@ type UseChatOptions = {
   roomId: string;
   userId: string;
   initialMessages: ChatMessage[];
+  onNewMessage?: (message: ChatMessage) => void;
 };
 
 export function useChat({
@@ -27,14 +28,20 @@ export function useChat({
   roomId,
   userId,
   initialMessages,
+  onNewMessage,
 }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const onNewMessageRef = useRef(onNewMessage);
+  useEffect(() => {
+    onNewMessageRef.current = onNewMessage;
+  }, [onNewMessage]);
 
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (data: { message: ChatMessage }) => {
       setMessages((prev) => [...prev, data.message]);
+      onNewMessageRef.current?.(data.message);
     };
 
     socket.on("chat:new", handleNewMessage);

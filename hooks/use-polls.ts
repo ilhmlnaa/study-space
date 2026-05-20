@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 
 export type PollOption = {
@@ -26,6 +26,7 @@ type UsePollsOptions = {
   roomId: string;
   initialPolls: Poll[];
   currentUserId: string; // kept for API consistency
+  onNewPoll?: (poll: Poll) => void;
 };
 
 export function usePolls({
@@ -33,8 +34,13 @@ export function usePolls({
   roomId,
   initialPolls,
   currentUserId: _currentUserId,
+  onNewPoll,
 }: UsePollsOptions) {
   const [polls, setPolls] = useState<Poll[]>(initialPolls);
+  const onNewPollRef = useRef(onNewPoll);
+  useEffect(() => {
+    onNewPollRef.current = onNewPoll;
+  }, [onNewPoll]);
 
   useEffect(() => {
     if (!socket) return;
@@ -44,6 +50,7 @@ export function usePolls({
         if (prev.some((p) => p.id === data.poll.id)) return prev;
         return [data.poll, ...prev];
       });
+      onNewPollRef.current?.(data.poll);
     };
 
     const handlePollResult = (data: { poll?: Poll; result?: Poll }) => {

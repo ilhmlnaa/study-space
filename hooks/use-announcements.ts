@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 
 export type Announcement = {
@@ -20,15 +20,21 @@ type UseAnnouncementsOptions = {
   socket: Socket | null;
   roomId: string;
   initialAnnouncements: Announcement[];
+  onNewAnnouncement?: (announcement: Announcement) => void;
 };
 
 export function useAnnouncements({
   socket,
   roomId,
   initialAnnouncements,
+  onNewAnnouncement,
 }: UseAnnouncementsOptions) {
   const [announcements, setAnnouncements] =
     useState<Announcement[]>(initialAnnouncements);
+  const onNewAnnouncementRef = useRef(onNewAnnouncement);
+  useEffect(() => {
+    onNewAnnouncementRef.current = onNewAnnouncement;
+  }, [onNewAnnouncement]);
 
   useEffect(() => {
     if (!socket) return;
@@ -38,6 +44,7 @@ export function useAnnouncements({
         if (prev.some((a) => a.id === data.announcement.id)) return prev;
         return [data.announcement, ...prev];
       });
+      onNewAnnouncementRef.current?.(data.announcement);
     };
 
     socket.on("announcement:new", handleNewAnnouncement);

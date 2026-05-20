@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { RoomClient } from "./room-client";
+import { RoomClient } from "../../../components/room/room-client";
 
 type RoomPageProps = {
   params: Promise<{
