@@ -6,6 +6,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Seeding database...");
 
+  const userCount = await prisma.user.count();
+
+  if (userCount > 0) {
+    console.log("Database already contains users. Skipping seed.");
+    return;
+  }
+
   const password = await bcrypt.hash("password123", 12);
 
   // Create Admin

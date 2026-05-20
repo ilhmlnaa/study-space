@@ -14,16 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  migrate:
-    image: ghcr.io/ilhmlnaa/study-space:latest
-    restart: "no"
-    command: ["sh", "-c", "pnpm db:migrate && pnpm db:seed"]
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-studyspace}
-    depends_on:
-      db:
-        condition: service_healthy
-
   app:
     image: ghcr.io/ilhmlnaa/study-space:latest
     restart: unless-stopped
@@ -42,8 +32,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
 volumes:
   pgdata:
