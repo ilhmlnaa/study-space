@@ -13,8 +13,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: "standalone",
   transpilePackages: ["@excalidraw/excalidraw"],
+  output: "standalone",
 };
 
 export default nextConfig;

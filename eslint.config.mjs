@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
       // Excalidraw, Socket.IO, and Prisma JSON payloads are inherently
       // dynamic. Allow `any` rather than fighting third-party types.
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
 
       // Allow underscore-prefixed unused parameters (common in route handlers).
       "@typescript-eslint/no-unused-vars": [

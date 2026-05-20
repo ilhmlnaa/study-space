@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    command: ["pnpm", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/studyspace
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build:
       context: .
@@ -36,6 +48,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

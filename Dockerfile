@@ -22,11 +22,24 @@ ENV NODE_ENV=production
 RUN pnpm prisma generate
 RUN pnpm build
 
+RUN pnpm exec esbuild server.ts \
+    --bundle \
+    --platform=node \
+    --target=node22 \
+    --format=cjs \
+    --outfile=dist/server.js \
+    --external:next \
+    --external:@prisma/client \
+    --external:.prisma/client
+
 # Stage 3: runner
 FROM node:22-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+RUN npm install -g pnpm@9.15.9
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -39,14 +52,17 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-
-COPY --from=builder --chown=nextjs:nodejs /app/server.ts ./server.ts
-COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/dist/server.js ./server.js
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+
+RUN mkdir -p /app/node_modules/.bin \
+    && printf '#!/bin/sh\nexec node /app/node_modules/prisma/build/index.js "$@"\n' > /app/node_modules/.bin/prisma \
+    && chmod +x /app/node_modules/.bin/prisma \
+    && chown -R nextjs:nodejs /app/node_modules/.bin
+
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
-COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./next.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 USER nextjs
 
@@ -55,4 +71,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "--import", "tsx", "server.ts"]
+CMD ["node", "server.js"]
