@@ -6,6 +6,9 @@ export type SocketServer = SocketIOServer;
 
 let io: SocketIOServer | null = null;
 
+// Track socket-to-room mapping for disconnect cleanup
+const socketRoomMap = new Map<string, { roomId: string; userId: string }>();
+
 export function getIO(): SocketIOServer | null {
   return io;
 }
@@ -30,6 +33,9 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
     socket.on("room:join", async (data: { roomId: string; userId: string }) => {
       const { roomId, userId } = data;
       socket.join(roomId);
+
+      // Track this socket's room membership for disconnect cleanup
+      socketRoomMap.set(socket.id, { roomId, userId });
 
       try {
         const user = await prisma.user.findUnique({
@@ -72,6 +78,9 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       async (data: { roomId: string; userId: string }) => {
         const { roomId, userId } = data;
         socket.leave(roomId);
+
+        // Remove from tracking map to prevent double cleanup on disconnect
+        socketRoomMap.delete(socket.id);
 
         try {
           await prisma.roomParticipant.updateMany({
@@ -214,7 +223,6 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
     // Raise hand - client sends already-created raiseHand object
     socket.on("hand:raise", (data: { roomId: string; raiseHand: unknown }) => {
       const { roomId, raiseHand } = data;
-      // Just broadcast to room - REST API already created the record
       io!.to(roomId).emit("hand:raised", { raiseHand });
     });
 
@@ -245,8 +253,39 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       },
     );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log(`[Socket] Client disconnected: ${socket.id}`);
+
+      // Cleanup: remove user from room participants on disconnect
+      const mapping = socketRoomMap.get(socket.id);
+      if (mapping) {
+        const { roomId, userId } = mapping;
+        socketRoomMap.delete(socket.id);
+
+        try {
+          await prisma.roomParticipant.updateMany({
+            where: { roomId, userId, leftAt: null },
+            data: { leftAt: new Date() },
+          });
+
+          socket.to(roomId).emit("room:user_left", { userId });
+
+          const participants = await prisma.roomParticipant.findMany({
+            where: { roomId, leftAt: null },
+            include: {
+              user: {
+                select: { id: true, name: true, image: true, role: true },
+              },
+            },
+          });
+
+          io!.to(roomId).emit("room:participants", {
+            participants: participants.map((p) => p.user),
+          });
+        } catch (err) {
+          console.error("[Socket] disconnect cleanup error", err);
+        }
+      }
     });
   });
 
