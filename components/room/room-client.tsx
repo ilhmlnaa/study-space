@@ -474,13 +474,17 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
           {room.roomMode === "VIDEO_CONFERENCE" && (
             <div
               className={cn(
-                "min-w-0 flex-1 overflow-hidden bg-card transition-all",
+                "min-w-0 flex-1 overflow-hidden bg-card",
                 "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-                // Desktop: show when mainView is video
-                // Mobile: show when mobileActiveTab is video
-                mainView === "video" ? "hidden lg:flex" : "hidden",
-                mobileActiveTab === "video" && "flex lg:hidden",
-                mainView === "video" && mobileActiveTab === "video" && "flex",
+                // On desktop (lg+): show when mainView is video
+                // On mobile (<lg): show when mobileActiveTab is video
+                mainView === "video" && mobileActiveTab === "video"
+                  ? "flex" // both desktop and mobile: show
+                  : mainView === "video"
+                    ? "hidden lg:flex" // desktop only
+                    : mobileActiveTab === "video"
+                      ? "flex lg:hidden" // mobile only
+                      : "hidden", // neither
               )}
             >
               <VideoConferencePanel
@@ -497,14 +501,17 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
           {/* Whiteboard area */}
           <div
             className={cn(
-              "min-w-0 flex-1 overflow-hidden bg-card transition-all",
+              "min-w-0 flex-1 overflow-hidden bg-card",
               "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-              // Desktop: show when mainView is whiteboard (or WHITEBOARD_ONLY room)
-              mainView === "whiteboard" ? "hidden lg:flex" : "hidden",
-              mobileActiveTab === "whiteboard" && "flex lg:hidden",
-              mainView === "whiteboard" &&
-                mobileActiveTab === "whiteboard" &&
-                "flex",
+              // On desktop (lg+): show when mainView is whiteboard
+              // On mobile (<lg): show when mobileActiveTab is whiteboard
+              mainView === "whiteboard" && mobileActiveTab === "whiteboard"
+                ? "flex" // both
+                : mainView === "whiteboard"
+                  ? "hidden lg:flex" // desktop only
+                  : mobileActiveTab === "whiteboard"
+                    ? "flex lg:hidden" // mobile only
+                    : "hidden", // neither
             )}
           >
             <ExcalidrawWhiteboard
