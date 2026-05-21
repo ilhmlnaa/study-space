@@ -1,5 +1,7 @@
 import { Server as NetServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 import { prisma } from "./prisma";
 
 export type SocketServer = SocketIOServer;
@@ -21,6 +23,32 @@ const socketRoomMap = new Map<string, RoomMapping>();
 const participantBroadcastTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const chatRateLimits = new Map<string, RateLimitState>();
 const whiteboardRateLimits = new Map<string, RateLimitState>();
+
+async function setupRedisAdapter(server: SocketIOServer) {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    console.log("[Socket] REDIS_URL not set, running with in-memory adapter");
+    return;
+  }
+
+  try {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => {
+      console.error("[Socket] Redis pub client error", err);
+    });
+    subClient.on("error", (err) => {
+      console.error("[Socket] Redis sub client error", err);
+    });
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    server.adapter(createAdapter(pubClient, subClient));
+    console.log("[Socket] Redis adapter connected");
+  } catch (err) {
+    console.error("[Socket] Redis adapter setup failed, using in-memory adapter", err);
+  }
+}
 
 export function getIO(): SocketIOServer | null {
   return io;
@@ -89,7 +117,7 @@ function scheduleParticipantBroadcast(roomId: string) {
   participantBroadcastTimers.set(roomId, timer);
 }
 
-export function initSocketServer(httpServer: NetServer): SocketIOServer {
+export async function initSocketServer(httpServer: NetServer): Promise<SocketIOServer> {
   if (io) return io;
 
   io = new SocketIOServer(httpServer, {
@@ -101,6 +129,8 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       credentials: true,
     },
   });
+
+  await setupRedisAdapter(io);
 
   io.on("connection", (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`);

@@ -21,7 +21,9 @@ async function main() {
       handle(req, res, parsedUrl);
     });
 
-    initSocketServer(httpServer);
+    initSocketServer(httpServer).catch((err) => {
+      console.error("[Socket] init failed", err);
+    });
 
     httpServer
       .once("error", (err) => {
@@ -42,7 +44,9 @@ async function main() {
       if (!intercepted) {
         intercepted = true;
         server.once("listening", () => {
-          initSocketServer(server);
+          initSocketServer(server).catch((err) => {
+            console.error("[Socket] init failed", err);
+          });
           console.log(`> Socket.IO listening on path /api/socket`);
         });
       }

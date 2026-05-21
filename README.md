@@ -239,7 +239,21 @@ Realtime scalability safeguards included in the Socket.IO server:
 - Whiteboard sync rate limiting and payload size guard.
 - Reconnect handling on the client to automatically rejoin the room.
 
-For single-instance deployments, Redis is optional. For multiple app instances behind a load balancer, configure `REDIS_URL` and use a Socket.IO Redis adapter so room broadcasts work across instances.
+For single-instance deployments, Redis is optional. For multiple app instances behind a load balancer, configure `REDIS_URL` so the Socket.IO Redis adapter can synchronize room broadcasts across instances.
+
+Local Docker Compose includes a Redis service by default:
+
+```env
+REDIS_URL="redis://redis:6379"
+```
+
+For local non-Docker development, you can run Redis separately and set:
+
+```env
+REDIS_URL="redis://localhost:6379"
+```
+
+If `REDIS_URL` is not set or Redis cannot connect, the app falls back to the default in-memory Socket.IO adapter. This fallback is fine for one app instance, but not for horizontal scaling.
 
 ## API Endpoints
 
