@@ -14,6 +14,7 @@ type ChatPanelProps = {
   onSendMessage: (content: string) => void;
   isReadOnly: boolean;
   currentUserId: string;
+  error?: string | null;
 };
 
 export function ChatPanel({
@@ -21,6 +22,7 @@ export function ChatPanel({
   onSendMessage,
   isReadOnly,
   currentUserId,
+  error,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -112,6 +114,11 @@ export function ChatPanel({
 
       {/* Input */}
       <div className="border-t p-3">
+        {error && (
+          <p className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {error}
+          </p>
+        )}
         {isReadOnly ? (
           <p className="text-center text-sm text-muted-foreground">
             This room is closed. Chat is read-only.

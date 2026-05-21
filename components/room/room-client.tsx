@@ -152,7 +152,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const [whiteboardPermission, setWhiteboardPermission] =
     useState<WhiteboardPermission>(room.whiteboardPermission);
 
-  const socket = useSocket(room.id, currentUser.id);
+  const { socket, status: socketStatus } = useSocket(room.id, currentUser.id);
 
   useEffect(() => {
     if (!socket) return;
@@ -307,7 +307,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     clearBadge(tabId);
   }
 
-  const { messages, sendMessage } = useChat({
+  const { messages, sendMessage, error: chatError } = useChat({
     socket,
     roomId: room.id,
     userId: currentUser.id,
@@ -404,6 +404,14 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
         </div>
       )}
 
+      {socketStatus !== "connected" && (
+        <div className="flex items-center justify-center bg-yellow-500/10 px-4 py-2 text-sm text-yellow-700 dark:text-yellow-300">
+          {socketStatus === "connecting" && "Connecting to realtime server..."}
+          {socketStatus === "disconnected" && "Realtime connection disconnected. Reconnecting..."}
+          {socketStatus === "error" && "Realtime connection problem. Some updates may be delayed."}
+        </div>
+      )}
+
       <RoomHeader
         room={{ ...room, status: roomStatus }}
         participantCount={participants.length}
@@ -474,6 +482,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
                   onSendMessage={sendMessage}
                   isReadOnly={isReadOnly}
                   currentUserId={currentUser.id}
+                  error={chatError}
                 />
               )}
 
