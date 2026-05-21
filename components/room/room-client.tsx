@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  BarChart2,
-  Hand,
-  Megaphone,
-  MessageSquare,
-  Users,
-  Pencil,
-} from "lucide-react";
+import { BarChart2, Hand, Megaphone, MessageSquare, Users } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { getDashboardPath } from "@/lib/utils";
@@ -26,6 +19,7 @@ import { ExcalidrawWhiteboard } from "@/components/room/excalidraw-whiteboard";
 import { PollPanel } from "@/components/room/poll-panel";
 import { RaiseHandPanel } from "@/components/room/raise-hand-panel";
 import { AnnouncementPanel } from "@/components/room/announcement-panel";
+import { RoomMobileNav } from "@/components/room/room-mobile-nav";
 import type { Role, WhiteboardPermission } from "@prisma/client";
 
 type RoomUser = {
@@ -403,7 +397,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {isReadOnly && (
         <div className="flex items-center justify-center bg-muted px-4 py-2 text-sm text-muted-foreground">
           This room is closed. You are in read-only mode.
@@ -525,43 +519,16 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
         </div>
 
         {/* Mobile Bottom Navbar */}
-        <div className="flex lg:hidden shrink-0 border-t bg-card">
-          {[
-            {
-              id: "whiteboard",
-              label: "Board",
-              icon: <Pencil className="h-5 w-5" />,
-              badge: 0,
-            },
-            ...TABS,
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setMobileActiveTab(tab.id as "whiteboard" | TabId);
-                if (tab.id !== "whiteboard") {
-                  handleTabChange(tab.id as TabId);
-                }
-              }}
-              className={cn(
-                "relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
-                mobileActiveTab === tab.id
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <span className="relative">
-                {tab.icon}
-                {tab.badge > 0 && (
-                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
-                    {tab.badge > 99 ? "99+" : tab.badge}
-                  </span>
-                )}
-              </span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <RoomMobileNav
+          tabs={TABS}
+          mobileActiveTab={mobileActiveTab}
+          onTabChange={(tabId) => {
+            setMobileActiveTab(tabId as "whiteboard" | TabId);
+            if (tabId !== "whiteboard") {
+              handleTabChange(tabId as TabId);
+            }
+          }}
+        />
       </div>
     </div>
   );
