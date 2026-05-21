@@ -3,16 +3,23 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   LiveKitRoom,
+  CarouselLayout,
+  ConnectionStateToast,
+  FocusLayout,
+  FocusLayoutContainer,
   GridLayout,
+  LayoutContextProvider,
   ParticipantTile,
   RoomAudioRenderer,
   ControlBar,
   PreJoin,
+  useCreateLayoutContext,
+  usePinnedTracks,
   useTracks,
   type LocalUserChoices,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Track } from "livekit-client";
+import { RoomEvent, Track } from "livekit-client";
 import { Loader2, Mic, Video, VideoOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Socket } from "socket.io-client";
@@ -37,27 +44,49 @@ function VideoLayout() {
       { source: Track.Source.Camera, withPlaceholder: true },
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
-    { onlySubscribed: false },
+    {
+      updateOnlyOn: [RoomEvent.ActiveSpeakersChanged],
+      onlySubscribed: false,
+    },
   );
+  const layoutContext = useCreateLayoutContext();
+  const focusTrack = usePinnedTracks(layoutContext)?.[0];
+  const carouselTracks = tracks.filter((track) => track !== focusTrack);
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <GridLayout tracks={tracks} className="h-full w-full pb-20">
-        <ParticipantTile />
-      </GridLayout>
-      <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-background/95 via-background/70 to-transparent px-3 pb-3 pt-8">
-        <ControlBar
-          variation="verbose"
-          controls={{
-            microphone: true,
-            camera: true,
-            screenShare: true,
-            leave: true,
-            chat: false,
-            settings: false,
-          }}
-        />
-      </div>
+    <div className="lk-video-conference h-full w-full">
+      <LayoutContextProvider value={layoutContext}>
+        <div className="lk-video-conference-inner">
+          {!focusTrack ? (
+            <div className="lk-grid-layout-wrapper">
+              <GridLayout tracks={tracks}>
+                <ParticipantTile />
+              </GridLayout>
+            </div>
+          ) : (
+            <div className="lk-focus-layout-wrapper">
+              <FocusLayoutContainer>
+                <CarouselLayout tracks={carouselTracks}>
+                  <ParticipantTile />
+                </CarouselLayout>
+                <FocusLayout trackRef={focusTrack} />
+              </FocusLayoutContainer>
+            </div>
+          )}
+          <ControlBar
+            controls={{
+              microphone: true,
+              camera: true,
+              screenShare: true,
+              leave: true,
+              chat: false,
+              settings: false,
+            }}
+          />
+        </div>
+      </LayoutContextProvider>
+      <RoomAudioRenderer />
+      <ConnectionStateToast />
     </div>
   );
 }
@@ -272,7 +301,6 @@ export function VideoConferencePanel({
         }}
       >
         <VideoLayout />
-        <RoomAudioRenderer />
       </LiveKitRoom>
     </div>
   );
