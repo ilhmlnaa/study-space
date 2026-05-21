@@ -74,19 +74,6 @@ export default function ExcalidrawWrapper({
     return Object.keys(newFiles).length > 0 ? newFiles : undefined;
   }
 
-  function emitWhiteboardSync(elements: readonly any[], files: any) {
-    const sock = socketRef.current;
-    const rid = roomIdRef.current;
-    if (!sock) return;
-
-    const newFiles = getNewFiles(files);
-    sock.emit("whiteboard:sync", {
-      roomId: rid,
-      elements,
-      ...(newFiles ? { files: newFiles } : {}),
-    });
-  }
-
   // Subscribe to remote whiteboard updates
   useEffect(() => {
     if (!socket) return;
@@ -130,6 +117,19 @@ export default function ExcalidrawWrapper({
   useEffect(() => {
     if (!api) return;
 
+    const emitSync = (elements: readonly any[], files: any) => {
+      const sock = socketRef.current;
+      const rid = roomIdRef.current;
+      if (!sock) return;
+
+      const newFiles = getNewFiles(files);
+      sock.emit("whiteboard:sync", {
+        roomId: rid,
+        elements,
+        ...(newFiles ? { files: newFiles } : {}),
+      });
+    };
+
     const unsubscribe = api.onChange(
       (elements: readonly any[], appState: any, files: any) => {
         if (isApplyingRemoteRef.current) return;
@@ -151,7 +151,7 @@ export default function ExcalidrawWrapper({
         if (!isDrawing) {
           const now = Date.now();
           if (now - lastSyncTimeRef.current >= SYNC_THROTTLE_MS) {
-            emitWhiteboardSync(elements, files);
+            emitSync(elements, files);
             lastSyncTimeRef.current = now;
             lastSyncedVersionRef.current = version;
           }
@@ -162,7 +162,7 @@ export default function ExcalidrawWrapper({
         if (finalSyncTimerRef.current) clearTimeout(finalSyncTimerRef.current);
         finalSyncTimerRef.current = setTimeout(() => {
           if (lastSyncedVersionRef.current !== lastVersionRef.current) {
-            emitWhiteboardSync(elements, files);
+            emitSync(elements, files);
             lastSyncedVersionRef.current = lastVersionRef.current;
             lastSyncTimeRef.current = Date.now();
           }
