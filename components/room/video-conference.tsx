@@ -5,6 +5,8 @@ import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
+  PreJoin,
+  type LocalUserChoices,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Loader2, Mic, Video, VideoOff } from "lucide-react";
@@ -27,7 +29,7 @@ type VideoConferenceProps = {
 
 export function VideoConferencePanel({
   roomId,
-  currentUser: _currentUser,
+  currentUser,
   isCreator,
   isModerator,
   isReadOnly,
@@ -37,21 +39,23 @@ export function VideoConferencePanel({
   const [url, setUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isJoined, setIsJoined] = useState(false);
+  const [showPreJoin, setShowPreJoin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [speakingNotification, setSpeakingNotification] = useState<
     string | null
   >(null);
+  const [userChoices, setUserChoices] = useState<LocalUserChoices | null>(null);
 
   // Listen for speaking permission changes directed at this user
   useEffect(() => {
-    if (!socket || !_currentUser) return;
+    if (!socket || !currentUser) return;
 
     const handleSpeakingGranted = (data: {
       userId: string;
       canSpeak: boolean;
       canVideo: boolean;
     }) => {
-      if (data.userId !== _currentUser.id) return;
+      if (data.userId !== currentUser.id) return;
       const msg = data.canSpeak
         ? "You have been allowed to speak. Reconnect to activate your mic."
         : "Your video permission has been updated.";
@@ -60,7 +64,7 @@ export function VideoConferencePanel({
     };
 
     const handleSpeakingRevoked = (data: { userId: string }) => {
-      if (data.userId !== _currentUser.id) return;
+      if (data.userId !== currentUser.id) return;
       setSpeakingNotification("Your speaking permission has been revoked.");
       setTimeout(() => setSpeakingNotification(null), 6000);
     };
@@ -72,9 +76,9 @@ export function VideoConferencePanel({
       socket.off("speaking:granted", handleSpeakingGranted);
       socket.off("speaking:revoked", handleSpeakingRevoked);
     };
-  }, [socket, _currentUser]);
+  }, [socket, currentUser]);
 
-  const joinVideoRoom = useCallback(async () => {
+  const fetchToken = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
 
@@ -93,20 +97,39 @@ export function VideoConferencePanel({
       const data = (await response.json()) as { url: string; token: string };
       setUrl(data.url);
       setToken(data.token);
-      setIsJoined(true);
+      return true;
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to join video room",
       );
+      return false;
     } finally {
       setIsConnecting(false);
     }
   }, [roomId]);
 
+  const handlePreJoinSubmit = useCallback(
+    async (values: LocalUserChoices) => {
+      setUserChoices(values);
+      const success = await fetchToken();
+      if (success) {
+        setIsJoined(true);
+      }
+    },
+    [fetchToken],
+  );
+
+  const handlePreJoinError = useCallback((err: Error) => {
+    console.warn("PreJoin device error:", err.message);
+    // Don't block the user from joining — device errors are non-fatal
+  }, []);
+
   const handleDisconnected = useCallback(() => {
     setIsJoined(false);
     setToken(null);
     setUrl(null);
+    setShowPreJoin(false);
+    setUserChoices(null);
   }, []);
 
   if (isReadOnly) {
@@ -122,7 +145,8 @@ export function VideoConferencePanel({
     );
   }
 
-  if (!isJoined) {
+  // Initial state: show join button
+  if (!showPreJoin && !isJoined) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="text-center space-y-4">
@@ -132,7 +156,7 @@ export function VideoConferencePanel({
           <div>
             <h3 className="text-lg font-semibold">Video Conference</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Join the video call to collaborate with participants
+              Preview your camera and microphone before joining
             </p>
           </div>
           {error && (
@@ -141,28 +165,80 @@ export function VideoConferencePanel({
             </p>
           )}
           <Button
-            onClick={joinVideoRoom}
-            disabled={isConnecting}
+            onClick={() => setShowPreJoin(true)}
             size="lg"
             className="gap-2"
           >
-            {isConnecting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Video className="h-4 w-4" />
-                Join Video Call
-              </>
-            )}
+            <Video className="h-4 w-4" />
+            Set Up & Join
           </Button>
         </div>
       </div>
     );
   }
 
+  // PreJoin screen: camera/mic preview and device selection
+  if (showPreJoin && !isJoined) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-4 overflow-auto">
+        <div className="w-full max-w-lg space-y-4">
+          <div className="text-center mb-4">
+            <h3 className="text-lg font-semibold">Ready to join?</h3>
+            <p className="text-sm text-muted-foreground">
+              Check your camera and microphone, then join the call
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2 text-center">
+              {error}
+            </p>
+          )}
+
+          {isConnecting && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">
+                Connecting...
+              </span>
+            </div>
+          )}
+
+          <div data-lk-theme="default" className="[&_.lk-prejoin]:border-0">
+            <PreJoin
+              defaults={{
+                username: currentUser.name ?? "Anonymous",
+                videoEnabled: isCreator || isModerator,
+                audioEnabled: isCreator || isModerator,
+              }}
+              onSubmit={handlePreJoinSubmit}
+              onError={handlePreJoinError}
+              joinLabel={isConnecting ? "Connecting..." : "Join Video Call"}
+              userLabel="Display Name"
+              camLabel="Camera"
+              micLabel="Microphone"
+            />
+          </div>
+
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowPreJoin(false);
+                setError(null);
+              }}
+              className="text-muted-foreground"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Connected: show video conference
   return (
     <div
       className="relative h-full w-full [&_.lk-video-conference]:h-full"
@@ -180,8 +256,8 @@ export function VideoConferencePanel({
         serverUrl={url!}
         token={token!}
         connect={true}
-        video={isCreator || isModerator}
-        audio={isCreator || isModerator}
+        video={userChoices?.videoEnabled ?? (isCreator || isModerator)}
+        audio={userChoices?.audioEnabled ?? (isCreator || isModerator)}
         onDisconnected={handleDisconnected}
         onError={(err) => {
           console.error("LiveKit error:", err);
