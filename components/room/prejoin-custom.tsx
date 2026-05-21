@@ -129,22 +129,6 @@ export function PreJoinCustom({
           <div className="absolute bottom-2 right-2 flex gap-2">
             <button
               type="button"
-              onClick={() => setAudioEnabled((v) => !v)}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                audioEnabled
-                  ? "bg-white/20 text-white hover:bg-white/30"
-                  : "bg-destructive text-white hover:bg-destructive/90"
-              }`}
-              title={audioEnabled ? "Mute mic" : "Unmute mic"}
-            >
-              {audioEnabled ? (
-                <Mic className="h-4 w-4" />
-              ) : (
-                <MicOff className="h-4 w-4" />
-              )}
-            </button>
-            <button
-              type="button"
               onClick={() => setVideoEnabled((v) => !v)}
               className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
                 videoEnabled
@@ -159,13 +143,32 @@ export function PreJoinCustom({
                 <CameraOff className="h-4 w-4" />
               )}
             </button>
+            <button
+              type="button"
+              onClick={() => setAudioEnabled((v) => !v)}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                audioEnabled
+                  ? "bg-white/20 text-white hover:bg-white/30"
+                  : "bg-destructive text-white hover:bg-destructive/90"
+              }`}
+              title={audioEnabled ? "Mute mic" : "Unmute mic"}
+            >
+              {audioEnabled ? (
+                <Mic className="h-4 w-4" />
+              ) : (
+                <MicOff className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </div>
 
         {/* Device selectors */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="camera-select" className="flex items-center gap-1.5">
+            <Label
+              htmlFor="camera-select"
+              className="flex items-center gap-1.5"
+            >
               <Camera className="h-3.5 w-3.5" />
               Camera
             </Label>
