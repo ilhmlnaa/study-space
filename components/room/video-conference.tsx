@@ -12,16 +12,15 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   ControlBar,
-  PreJoin,
   useCreateLayoutContext,
   usePinnedTracks,
   useTracks,
-  type LocalUserChoices,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { RoomEvent, Track } from "livekit-client";
-import { Loader2, Mic, Video, VideoOff, X } from "lucide-react";
+import { Mic, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PreJoinCustom } from "@/components/room/prejoin-custom";
 import type { Socket } from "socket.io-client";
 
 type VideoConferenceProps = {
@@ -112,6 +111,8 @@ export function VideoConferencePanel({
   // Prejoin state
   const [audioEnabled, setAudioEnabled] = useState(isCreator || isModerator);
   const [videoEnabled, setVideoEnabled] = useState(isCreator || isModerator);
+  const [videoDeviceId, setVideoDeviceId] = useState("");
+  const [audioDeviceId, setAudioDeviceId] = useState("");
 
   // Listen for speaking permission changes directed at this user
   useEffect(() => {
@@ -146,11 +147,18 @@ export function VideoConferencePanel({
   }, [socket, currentUser]);
 
   const handleJoin = useCallback(
-    async (choices: LocalUserChoices) => {
+    async (choices: {
+      videoEnabled: boolean;
+      audioEnabled: boolean;
+      videoDeviceId: string;
+      audioDeviceId: string;
+    }) => {
       setIsConnecting(true);
       setError(null);
       setAudioEnabled(choices.audioEnabled);
       setVideoEnabled(choices.videoEnabled);
+      setVideoDeviceId(choices.videoDeviceId);
+      setAudioDeviceId(choices.audioDeviceId);
 
       try {
         const response = await fetch(`/api/rooms/${roomId}/video-token`, {
@@ -227,53 +235,21 @@ export function VideoConferencePanel({
     );
   }
 
-  // Prejoin screen — LiveKit PreJoin with camera preview + device selectors
+  // Custom prejoin screen with LiveKit device hooks and app styling
   if (showPreJoin && !isJoined) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center overflow-auto p-4">
-        <div className="w-full max-w-xl">
-          {error && (
-            <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          <div data-lk-theme="default">
-            <PreJoin
-              defaults={{
-                username: currentUser.name ?? "Anonymous",
-                videoEnabled: isCreator || isModerator,
-                audioEnabled: isCreator || isModerator,
-              }}
-              onSubmit={handleJoin}
-              onError={(err) =>
-                console.warn("PreJoin device error:", err.message)
-              }
-              joinLabel={isConnecting ? "Connecting..." : "Join Video Call"}
-              userLabel="Display Name"
-              camLabel="Camera"
-              micLabel="Microphone"
-              persistUserChoices={false}
-            />
-          </div>
-
-          <div className="mt-3 flex justify-center">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setShowPreJoin(false);
-                setError(null);
-              }}
-              disabled={isConnecting}
-              className="gap-2"
-            >
-              <X className="h-3.5 w-3.5" />
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PreJoinCustom
+        defaultUsername={currentUser.name ?? "Anonymous"}
+        defaultVideoEnabled={isCreator || isModerator}
+        defaultAudioEnabled={isCreator || isModerator}
+        isConnecting={isConnecting}
+        error={error}
+        onSubmit={handleJoin}
+        onCancel={() => {
+          setShowPreJoin(false);
+          setError(null);
+        }}
+      />
     );
   }
 
@@ -292,8 +268,16 @@ export function VideoConferencePanel({
         serverUrl={url!}
         token={token!}
         connect={true}
-        video={videoEnabled}
-        audio={audioEnabled}
+        video={
+          videoEnabled && videoDeviceId
+            ? { deviceId: { exact: videoDeviceId } }
+            : videoEnabled
+        }
+        audio={
+          audioEnabled && audioDeviceId
+            ? { deviceId: { exact: audioDeviceId } }
+            : audioEnabled
+        }
         onDisconnected={handleDisconnected}
         onError={(err) => {
           console.error("LiveKit error:", err);
