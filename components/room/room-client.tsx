@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart2, Hand, Megaphone, MessageSquare, Users } from "lucide-react";
+import {
+  BarChart2,
+  Hand,
+  Megaphone,
+  MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
+  Settings,
+  Users,
+} from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { getDashboardPath } from "@/lib/utils";
@@ -15,6 +24,7 @@ import { useAnnouncements, type Announcement } from "@/hooks/use-announcements";
 import { RoomHeader } from "@/components/room/room-header";
 import { ChatPanel } from "@/components/room/chat-panel";
 import { ParticipantPanel } from "@/components/room/participant-panel";
+import { SettingsPanel } from "@/components/room/settings-panel";
 import { ExcalidrawWhiteboard } from "@/components/room/excalidraw-whiteboard";
 import { VideoConferencePanel } from "@/components/room/video-conference";
 import { PollPanel } from "@/components/room/poll-panel";
@@ -39,6 +49,9 @@ type RoomData = {
   createdById: string;
   whiteboardPermission: WhiteboardPermission;
   roomMode: RoomMode;
+  studentCanEnableMic?: boolean;
+  studentCanEnableCamera?: boolean;
+  studentCanShareScreen?: boolean;
   participants: { user: RoomUser; canSpeak: boolean; canVideo: boolean }[];
   moderators: { userId: string; user: RoomUser }[];
   messages: {
@@ -89,9 +102,20 @@ type RoomClientProps = {
   currentUser: RoomUser;
 };
 
-type TabId = "chat" | "participants" | "polls" | "raise-hand" | "announcements";
+type TabId =
+  | "chat"
+  | "participants"
+  | "polls"
+  | "raise-hand"
+  | "announcements"
+  | "settings";
 
-const TAB_DEFS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+const TAB_DEFS: {
+  id: TabId;
+  label: string;
+  icon: React.ReactNode;
+  creatorOnly?: boolean;
+}[] = [
   { id: "chat", label: "Chat", icon: <MessageSquare className="h-4 w-4" /> },
   { id: "participants", label: "People", icon: <Users className="h-4 w-4" /> },
   { id: "polls", label: "Polls", icon: <BarChart2 className="h-4 w-4" /> },
@@ -101,9 +125,15 @@ const TAB_DEFS: { id: TabId; label: string; icon: React.ReactNode }[] = [
     label: "Announce",
     icon: <Megaphone className="h-4 w-4" />,
   },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: <Settings className="h-4 w-4" />,
+    creatorOnly: true,
+  },
 ];
 
-type BadgeCounts = Record<TabId, number>;
+type BadgeCounts = Record<Exclude<TabId, "settings">, number>;
 
 function toIsoString(value: Date | string | null): string | null {
   if (!value) return null;
@@ -158,11 +188,11 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const [whiteboardPermission, setWhiteboardPermission] =
     useState<WhiteboardPermission>(room.whiteboardPermission);
 
-  // For VIDEO_CONFERENCE rooms: track which main view is shown.
-  // Video connection stays alive in background when switching to whiteboard.
   const [mainView, setMainView] = useState<MainView>(
     room.roomMode === "VIDEO_CONFERENCE" ? "video" : "whiteboard",
   );
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [speakingUserIds, setSpeakingUserIds] = useState<string[]>(() =>
     room.participants
@@ -322,7 +352,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  function isTabVisible(tabId: TabId) {
+  function isTabVisible(tabId: Exclude<TabId, "settings">) {
     if (isDesktopRef.current) {
       return activeTabRef.current === tabId;
     }
@@ -331,17 +361,19 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     );
   }
 
-  function incrementBadge(tabId: TabId) {
+  function incrementBadge(tabId: Exclude<TabId, "settings">) {
     setBadges((prev) => ({ ...prev, [tabId]: prev[tabId] + 1 }));
   }
 
-  function clearBadge(tabId: TabId) {
+  function clearBadge(tabId: Exclude<TabId, "settings">) {
     setBadges((prev) => ({ ...prev, [tabId]: 0 }));
   }
 
   function handleTabChange(tabId: TabId) {
     setActiveTab(tabId);
-    clearBadge(tabId);
+    if (tabId !== "settings") {
+      clearBadge(tabId);
+    }
   }
 
   const {
@@ -408,13 +440,15 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   const canResolveRaiseHand = (isCreator || isModerator) && !isReadOnly;
   const canSendAnnouncement = (isCreator || isModerator) && !isReadOnly;
 
-  const TABS = TAB_DEFS.map((tab) => {
-    let badge = badges[tab.id];
-    if (tab.id === "raise-hand" && canResolveRaiseHand) {
-      badge = unresolvedHandCount;
-    }
-    return { ...tab, badge };
-  });
+  const TABS = TAB_DEFS.filter((tab) => !tab.creatorOnly || isCreator).map(
+    (tab) => {
+      let badge = tab.id === "settings" ? 0 : badges[tab.id];
+      if (tab.id === "raise-hand" && canResolveRaiseHand) {
+        badge = unresolvedHandCount;
+      }
+      return { ...tab, badge };
+    },
+  );
 
   const canDraw =
     !isReadOnly &&
@@ -470,21 +504,18 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
 
       <div className="flex flex-1 overflow-hidden flex-col">
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Video Conference area (only for VIDEO_CONFERENCE rooms) */}
           {room.roomMode === "VIDEO_CONFERENCE" && (
             <div
               className={cn(
                 "min-w-0 flex-1 overflow-hidden bg-card",
                 "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-                // On desktop (lg+): show when mainView is video
-                // On mobile (<lg): show when mobileActiveTab is video
                 mainView === "video" && mobileActiveTab === "video"
-                  ? "flex" // both desktop and mobile: show
+                  ? "flex" 
                   : mainView === "video"
-                    ? "hidden lg:flex" // desktop only
+                    ? "hidden lg:flex" 
                     : mobileActiveTab === "video"
-                      ? "flex lg:hidden" // mobile only
-                      : "hidden", // neither
+                      ? "flex lg:hidden" 
+                      : "hidden",
               )}
             >
               <VideoConferencePanel
@@ -503,15 +534,13 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
             className={cn(
               "min-w-0 flex-1 overflow-hidden bg-card",
               "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-              // On desktop (lg+): show when mainView is whiteboard
-              // On mobile (<lg): show when mobileActiveTab is whiteboard
               mainView === "whiteboard" && mobileActiveTab === "whiteboard"
-                ? "flex" // both
+                ? "flex" 
                 : mainView === "whiteboard"
-                  ? "hidden lg:flex" // desktop only
+                  ? "hidden lg:flex"
                   : mobileActiveTab === "whiteboard"
-                    ? "flex lg:hidden" // mobile only
-                    : "hidden", // neither
+                    ? "flex lg:hidden"
+                    : "hidden",
             )}
           >
             <ExcalidrawWhiteboard
@@ -527,15 +556,21 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
           {/* Sidebar */}
           <aside
             className={cn(
-              "flex w-full flex-col bg-card lg:w-96 lg:border-l transition-all",
-              // Desktop: always visible
-              // Mobile: visible when a tab (not video/whiteboard) is selected
+              "flex w-full flex-col bg-card lg:border-l",
+              "transition-[width] duration-300 ease-in-out",
               mobileActiveTab !== "video" && mobileActiveTab !== "whiteboard"
                 ? "flex flex-1 lg:flex-none"
                 : "hidden lg:flex",
+              sidebarCollapsed ? "lg:w-14" : "lg:w-96",
             )}
           >
-            <div className="hidden lg:flex shrink-0 overflow-x-auto border-b">
+            {/* Desktop tab strip — horizontal when expanded */}
+            <div
+              className={cn(
+                "hidden shrink-0 overflow-hidden border-b transition-all duration-300",
+                sidebarCollapsed ? "lg:hidden" : "lg:flex",
+              )}
+            >
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
@@ -561,9 +596,67 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
                   {tab.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(true)}
+                className="flex shrink-0 items-center justify-center px-2 text-muted-foreground hover:text-foreground transition-colors"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            {/* Desktop collapsed rail — vertical icons */}
+            <div
+              className={cn(
+                "hidden shrink-0 flex-col items-center gap-1 border-b py-2 transition-all duration-300",
+                sidebarCollapsed ? "lg:flex" : "lg:hidden",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelRightOpen className="h-4 w-4" />
+              </button>
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    handleTabChange(tab.id);
+                    setSidebarCollapsed(false);
+                  }}
+                  className={cn(
+                    "relative flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                    activeTab === tab.id
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                  title={tab.label}
+                  aria-label={tab.label}
+                  type="button"
+                >
+                  {tab.icon}
+                  {tab.badge > 0 && (
+                    <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white">
+                      {tab.badge > 99 ? "99+" : tab.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Panel content — hidden when collapsed on desktop */}
+            <div
+              className={cn(
+                "flex-1 overflow-hidden transition-opacity duration-200",
+                sidebarCollapsed ? "opacity-0 lg:hidden" : "opacity-100",
+              )}
+            >
               {activeTab === "chat" && (
                 <ChatPanel
                   messages={messages}
@@ -621,6 +714,22 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
                   onSendAnnouncement={sendAnnouncement}
                   isReadOnly={isReadOnly}
                   canSendAnnouncement={canSendAnnouncement}
+                />
+              )}
+
+              {activeTab === "settings" && (
+                <SettingsPanel
+                  roomId={room.id}
+                  isCreator={isCreator}
+                  isReadOnly={isReadOnly}
+                  whiteboardPermission={whiteboardPermission}
+                  onWhiteboardPermissionChange={setWhiteboardPermission}
+                  moderators={room.moderators}
+                  socket={socket}
+                  isVideoConference={room.roomMode === "VIDEO_CONFERENCE"}
+                  studentCanEnableMic={room.studentCanEnableMic ?? false}
+                  studentCanEnableCamera={room.studentCanEnableCamera ?? false}
+                  studentCanShareScreen={room.studentCanShareScreen ?? false}
                 />
               )}
             </div>

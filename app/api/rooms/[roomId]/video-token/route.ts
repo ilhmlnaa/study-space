@@ -60,10 +60,8 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    // Determine role for permissions
     const role = isCreator ? "creator" : isModerator ? "moderator" : "student";
 
-    // Fetch per-participant overrides for students
     let participantOverrides:
       | { canSpeak: boolean; canVideo: boolean }
       | undefined;
@@ -90,7 +88,6 @@ export async function POST(_request: Request, context: RouteContext) {
       participantOverrides,
     );
 
-    // Room name in LiveKit = "studyspace-{roomId}"
     const livekitRoomName = `studyspace-${room.id}`;
 
     const token = await generateLiveKitToken({
@@ -98,7 +95,10 @@ export async function POST(_request: Request, context: RouteContext) {
       participantIdentity: userId,
       participantName: session.user.name ?? "Anonymous",
       permissions,
-      metadata: JSON.stringify({ role }),
+      metadata: JSON.stringify({
+        role,
+        image: session.user.image ?? null,
+      }),
     });
 
     const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;

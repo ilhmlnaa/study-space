@@ -15,7 +15,6 @@ function getLiveKitClient(): RoomServiceClient | null {
 
   if (!host || !apiKey || !apiSecret) return null;
 
-  // RoomServiceClient needs http(s) URL, convert ws(s) to http(s)
   const httpHost = host.replace(/^ws/, "http");
   return new RoomServiceClient(httpHost, apiKey, apiSecret);
 }
@@ -113,12 +112,10 @@ export async function POST(request: Request, context: RouteContext) {
           canPublishData: true,
         });
       } catch (err) {
-        // Participant might not be connected yet, that's okay
         console.warn("[Speaking] Failed to update LiveKit participant:", err);
       }
     }
 
-    // Emit socket event
     const io = getIO();
     if (io) {
       io.to(roomId).emit("speaking:granted", { userId, canSpeak, canVideo });
@@ -185,19 +182,16 @@ export async function DELETE(request: Request, context: RouteContext) {
       data: { canSpeak: false, canVideo: false },
     });
 
-    // Update LiveKit participant permissions and mute
     const livekitClient = getLiveKitClient();
     if (livekitClient) {
       const livekitRoomName = `studyspace-${roomId}`;
       try {
-        // Revoke publish permission
         await livekitClient.updateParticipant(livekitRoomName, userId, undefined, {
           canPublish: false,
           canSubscribe: true,
           canPublishData: true,
         });
 
-        // Mute all tracks
         const participantInfo = await livekitClient.getParticipant(
           livekitRoomName,
           userId,
@@ -219,7 +213,6 @@ export async function DELETE(request: Request, context: RouteContext) {
       }
     }
 
-    // Emit socket event
     const io = getIO();
     if (io) {
       io.to(roomId).emit("speaking:revoked", { userId });

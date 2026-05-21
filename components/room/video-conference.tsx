@@ -9,7 +9,6 @@ import {
   FocusLayoutContainer,
   GridLayout,
   LayoutContextProvider,
-  ParticipantTile,
   RoomAudioRenderer,
   useCreateLayoutContext,
   usePinnedTracks,
@@ -21,6 +20,7 @@ import { Mic, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PreJoinCustom } from "@/components/room/video-prejoin";
 import { VideoControlBar } from "@/components/room/video-controls";
+import { CustomParticipantTile } from "@/components/room/video-tile";
 import type { Socket } from "socket.io-client";
 
 type VideoConferenceProps = {
@@ -59,14 +59,14 @@ function VideoLayout() {
           {!focusTrack ? (
             <div className="lk-grid-layout-wrapper">
               <GridLayout tracks={tracks}>
-                <ParticipantTile />
+                <CustomParticipantTile />
               </GridLayout>
             </div>
           ) : (
             <div className="lk-focus-layout-wrapper">
               <FocusLayoutContainer>
                 <CarouselLayout tracks={carouselTracks}>
-                  <ParticipantTile />
+                  <CustomParticipantTile />
                 </CarouselLayout>
                 <FocusLayout trackRef={focusTrack} />
               </FocusLayoutContainer>
@@ -183,6 +183,7 @@ export function VideoConferencePanel({
     setToken(null);
     setUrl(null);
     setShowPreJoin(false);
+    setError(null);
   }, []);
 
   if (isReadOnly) {
@@ -271,6 +272,9 @@ export function VideoConferencePanel({
         }
         onDisconnected={handleDisconnected}
         onError={(err) => {
+          if (err.message?.includes("getUserMedia")) {
+            return;
+          }
           console.error("LiveKit error:", err);
           setError(err.message);
         }}
