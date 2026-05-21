@@ -11,7 +11,6 @@ import {
   LayoutContextProvider,
   ParticipantTile,
   RoomAudioRenderer,
-  ControlBar,
   useCreateLayoutContext,
   usePinnedTracks,
   useTracks,
@@ -20,7 +19,8 @@ import "@livekit/components-styles";
 import { RoomEvent, Track } from "livekit-client";
 import { Mic, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PreJoinCustom } from "@/components/room/prejoin-custom";
+import { PreJoinCustom } from "@/components/room/video-prejoin";
+import { VideoControlBar } from "@/components/room/video-controls";
 import type { Socket } from "socket.io-client";
 
 type VideoConferenceProps = {
@@ -72,16 +72,7 @@ function VideoLayout() {
               </FocusLayoutContainer>
             </div>
           )}
-          <ControlBar
-            controls={{
-              microphone: true,
-              camera: true,
-              screenShare: true,
-              leave: true,
-              chat: false,
-              settings: false,
-            }}
-          />
+          <VideoControlBar />
         </div>
       </LayoutContextProvider>
       <RoomAudioRenderer />
