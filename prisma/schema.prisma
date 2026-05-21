@@ -25,6 +25,16 @@ enum WhiteboardPermission {
   ALL_PARTICIPANTS
 }
 
+enum RoomMode {
+  WHITEBOARD_ONLY
+  VIDEO_CONFERENCE
+}
+
+enum VideoMode {
+  LECTURE
+  DISCUSSION
+}
+
 // NextAuth required models
 model Account {
   id                String  @id @default(cuid())
@@ -93,6 +103,13 @@ model Room {
   code                  String               @unique
   status                RoomStatus           @default(ACTIVE)
   whiteboardPermission  WhiteboardPermission @default(MENTOR_ONLY)
+  roomMode              RoomMode             @default(WHITEBOARD_ONLY)
+  videoMaxParticipants  Int?
+  videoMode             VideoMode            @default(LECTURE)
+  maxActiveCameras      Int                  @default(6)
+  studentCanShareScreen Boolean              @default(false)
+  studentCanEnableCamera Boolean             @default(false)
+  studentCanEnableMic   Boolean              @default(false)
   createdById           String
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt

@@ -25,6 +25,9 @@ type FieldErrors = {
   description?: string[];
   topic?: string[];
   whiteboardPermission?: string[];
+  roomMode?: string[];
+  videoMaxParticipants?: string[];
+  videoMode?: string[];
 };
 
 export function CreateRoomForm() {
@@ -38,6 +41,16 @@ export function CreateRoomForm() {
   const [topic, setTopic] = useState("");
   const [whiteboardPermission, setWhiteboardPermission] =
     useState("MENTOR_ONLY");
+  const [roomMode, setRoomMode] = useState<
+    "WHITEBOARD_ONLY" | "VIDEO_CONFERENCE"
+  >("WHITEBOARD_ONLY");
+  const [videoMaxParticipants, setVideoMaxParticipants] = useState("10");
+  const [videoMode, setVideoMode] = useState<"LECTURE" | "DISCUSSION">(
+    "LECTURE",
+  );
+  const [studentCanEnableCamera, setStudentCanEnableCamera] = useState(false);
+  const [studentCanEnableMic, setStudentCanEnableMic] = useState(false);
+  const [studentCanShareScreen, setStudentCanShareScreen] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,6 +62,15 @@ export function CreateRoomForm() {
       description: description.trim() || undefined,
       topic: topic.trim() || undefined,
       whiteboardPermission,
+      roomMode,
+      videoMaxParticipants:
+        roomMode === "VIDEO_CONFERENCE"
+          ? Number(videoMaxParticipants)
+          : undefined,
+      videoMode,
+      studentCanEnableCamera,
+      studentCanEnableMic,
+      studentCanShareScreen,
     };
 
     const parsed = createRoomSchema.safeParse(formData);
@@ -67,9 +89,11 @@ export function CreateRoomForm() {
         body: JSON.stringify(parsed.data),
       });
 
-      const data = (await response.json().catch(() => null)) as
-        | { room?: { id: string }; error?: string; details?: FieldErrors }
-        | null;
+      const data = (await response.json().catch(() => null)) as {
+        room?: { id: string };
+        error?: string;
+        details?: FieldErrors;
+      } | null;
 
       if (!response.ok) {
         if (data?.details) {
@@ -96,9 +120,7 @@ export function CreateRoomForm() {
     <Card>
       <CardHeader>
         <CardTitle>Create Study Room</CardTitle>
-        <CardDescription>
-          Set up a new collaborative study room
-        </CardDescription>
+        <CardDescription>Set up a new collaborative study room</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -122,9 +144,7 @@ export function CreateRoomForm() {
               onChange={(e) => setTitle(e.target.value)}
               disabled={isLoading}
               aria-invalid={fieldErrors.title ? true : undefined}
-              aria-describedby={
-                fieldErrors.title ? "title-error" : undefined
-              }
+              aria-describedby={fieldErrors.title ? "title-error" : undefined}
               required
             />
             {fieldErrors.title ? (
@@ -159,8 +179,7 @@ export function CreateRoomForm() {
           {/* Topic */}
           <div className="space-y-2">
             <Label htmlFor="topic">
-              Topic{" "}
-              <span className="text-muted-foreground">(optional)</span>
+              Topic <span className="text-muted-foreground">(optional)</span>
             </Label>
             <Input
               id="topic"
@@ -171,17 +190,136 @@ export function CreateRoomForm() {
               disabled={isLoading}
             />
             {fieldErrors.topic ? (
+              <p className="text-sm text-destructive">{fieldErrors.topic[0]}</p>
+            ) : null}
+          </div>
+
+          {/* Room Mode */}
+          <div className="space-y-2">
+            <Label htmlFor="roomMode">Room Type</Label>
+            <SelectRoot
+              id="roomMode"
+              name="roomMode"
+              value={roomMode}
+              onChange={(e) =>
+                setRoomMode(
+                  e.target.value as "WHITEBOARD_ONLY" | "VIDEO_CONFERENCE",
+                )
+              }
+              disabled={isLoading}
+            >
+              <option value="WHITEBOARD_ONLY">Whiteboard Only</option>
+              <option value="VIDEO_CONFERENCE">Video Conference</option>
+            </SelectRoot>
+            <p className="text-xs text-muted-foreground">
+              {roomMode === "VIDEO_CONFERENCE"
+                ? "Participants can join a live video call. Whiteboard is also available."
+                : "Whiteboard, chat, polls, and other tools — no video call."}
+            </p>
+            {fieldErrors.roomMode ? (
               <p className="text-sm text-destructive">
-                {fieldErrors.topic[0]}
+                {fieldErrors.roomMode[0]}
               </p>
             ) : null}
           </div>
 
+          {/* Video Conference Settings */}
+          {roomMode === "VIDEO_CONFERENCE" && (
+            <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium">Video Conference Settings</p>
+
+              {/* Max Participants */}
+              <div className="space-y-2">
+                <Label htmlFor="videoMaxParticipants">
+                  Max Participants{" "}
+                  <span className="text-muted-foreground">(2–50)</span>
+                </Label>
+                <Input
+                  id="videoMaxParticipants"
+                  name="videoMaxParticipants"
+                  type="number"
+                  min={2}
+                  max={50}
+                  value={videoMaxParticipants}
+                  onChange={(e) => setVideoMaxParticipants(e.target.value)}
+                  disabled={isLoading}
+                />
+                {fieldErrors.videoMaxParticipants ? (
+                  <p className="text-sm text-destructive">
+                    {fieldErrors.videoMaxParticipants[0]}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Video Mode */}
+              <div className="space-y-2">
+                <Label htmlFor="videoMode">Video Mode</Label>
+                <SelectRoot
+                  id="videoMode"
+                  name="videoMode"
+                  value={videoMode}
+                  onChange={(e) =>
+                    setVideoMode(e.target.value as "LECTURE" | "DISCUSSION")
+                  }
+                  disabled={isLoading}
+                >
+                  <option value="LECTURE">
+                    Lecture — mentor presents, students watch
+                  </option>
+                  <option value="DISCUSSION">
+                    Discussion — everyone can participate
+                  </option>
+                </SelectRoot>
+              </div>
+
+              {/* Student Permissions */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Student Permissions
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={studentCanEnableMic}
+                      onChange={(e) => setStudentCanEnableMic(e.target.checked)}
+                      disabled={isLoading}
+                      className="h-4 w-4 rounded border"
+                    />
+                    Allow students to enable microphone
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={studentCanEnableCamera}
+                      onChange={(e) =>
+                        setStudentCanEnableCamera(e.target.checked)
+                      }
+                      disabled={isLoading}
+                      className="h-4 w-4 rounded border"
+                    />
+                    Allow students to enable camera
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={studentCanShareScreen}
+                      onChange={(e) =>
+                        setStudentCanShareScreen(e.target.checked)
+                      }
+                      disabled={isLoading}
+                      className="h-4 w-4 rounded border"
+                    />
+                    Allow students to share screen
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Whiteboard Permission */}
           <div className="space-y-2">
-            <Label htmlFor="whiteboardPermission">
-              Whiteboard Permission
-            </Label>
+            <Label htmlFor="whiteboardPermission">Whiteboard Permission</Label>
             <SelectRoot
               id="whiteboardPermission"
               name="whiteboardPermission"

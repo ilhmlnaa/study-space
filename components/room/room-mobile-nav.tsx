@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { MonitorPlay, Pencil } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 type Tab = {
@@ -12,22 +12,40 @@ type RoomMobileNavProps = {
   tabs: Tab[];
   mobileActiveTab: string;
   onTabChange: (tabId: string) => void;
+  showVideoTab?: boolean;
 };
 
 export function RoomMobileNav({
   tabs,
   mobileActiveTab,
   onTabChange,
+  showVideoTab = false,
 }: RoomMobileNavProps) {
-  const allTabs = [
-    {
-      id: "whiteboard",
-      label: "Board",
-      icon: <Pencil className="h-5 w-5" />,
-      badge: 0,
-    },
-    ...tabs,
-  ];
+  const mainTabs = showVideoTab
+    ? [
+        {
+          id: "video",
+          label: "Video",
+          icon: <MonitorPlay className="h-5 w-5" />,
+          badge: 0,
+        },
+        {
+          id: "whiteboard",
+          label: "Board",
+          icon: <Pencil className="h-5 w-5" />,
+          badge: 0,
+        },
+      ]
+    : [
+        {
+          id: "whiteboard",
+          label: "Board",
+          icon: <Pencil className="h-5 w-5" />,
+          badge: 0,
+        },
+      ];
+
+  const allTabs = [...mainTabs, ...tabs];
 
   return (
     <div className="flex lg:hidden shrink-0 border-t bg-card">

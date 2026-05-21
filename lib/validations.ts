@@ -21,14 +21,43 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required."),
 });
 
-export const createRoomSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters."),
-  description: z.string().optional(),
-  topic: z.string().optional(),
-  whiteboardPermission: z
-    .enum(["MENTOR_ONLY", "MENTOR_MODERATOR", "ALL_PARTICIPANTS"])
-    .default("MENTOR_ONLY"),
-});
+export const createRoomSchema = z
+  .object({
+    title: z.string().min(3, "Title must be at least 3 characters."),
+    description: z.string().optional(),
+    topic: z.string().optional(),
+    whiteboardPermission: z
+      .enum(["MENTOR_ONLY", "MENTOR_MODERATOR", "ALL_PARTICIPANTS"])
+      .default("MENTOR_ONLY"),
+    roomMode: z
+      .enum(["WHITEBOARD_ONLY", "VIDEO_CONFERENCE"])
+      .default("WHITEBOARD_ONLY"),
+    videoMaxParticipants: z.coerce
+      .number()
+      .int()
+      .min(2, "Minimum 2 participants.")
+      .max(50, "Maximum 50 participants for now.")
+      .optional(),
+    videoMode: z.enum(["LECTURE", "DISCUSSION"]).default("LECTURE"),
+    studentCanShareScreen: z.boolean().default(false),
+    studentCanEnableCamera: z.boolean().default(false),
+    studentCanEnableMic: z.boolean().default(false),
+  })
+  .refine(
+    (data) => {
+      if (data.roomMode === "VIDEO_CONFERENCE") {
+        return (
+          data.videoMaxParticipants !== undefined &&
+          data.videoMaxParticipants >= 2
+        );
+      }
+      return true;
+    },
+    {
+      message: "Video conference rooms require videoMaxParticipants (min 2).",
+      path: ["videoMaxParticipants"],
+    },
+  );
 
 export const updateRoomSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters.").optional(),
@@ -37,6 +66,11 @@ export const updateRoomSchema = z.object({
   whiteboardPermission: z
     .enum(["MENTOR_ONLY", "MENTOR_MODERATOR", "ALL_PARTICIPANTS"])
     .optional(),
+  videoMode: z.enum(["LECTURE", "DISCUSSION"]).optional(),
+  videoMaxParticipants: z.coerce.number().int().min(2).max(50).optional(),
+  studentCanShareScreen: z.boolean().optional(),
+  studentCanEnableCamera: z.boolean().optional(),
+  studentCanEnableMic: z.boolean().optional(),
 });
 
 export const joinRoomSchema = z.object({

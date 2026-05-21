@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Users, X } from "lucide-react";
+import { ArrowLeft, Copy, MonitorPlay, PenLine, Users, X } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ type RoomHeaderProps = {
   isCreator: boolean;
   dashboardPath: string;
   onCloseRoom?: () => void;
+  showViewToggle?: boolean;
+  currentView?: "video" | "whiteboard";
+  onToggleView?: () => void;
 };
 
 export function RoomHeader({
@@ -29,6 +32,9 @@ export function RoomHeader({
   isCreator,
   dashboardPath,
   onCloseRoom,
+  showViewToggle = false,
+  currentView,
+  onToggleView,
 }: RoomHeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -41,7 +47,12 @@ export function RoomHeader({
   return (
     <header className="flex items-center gap-2 sm:gap-3 border-b bg-card px-3 sm:px-4 py-3">
       <Link href={dashboardPath}>
-        <Button variant="ghost" size="icon" aria-label="Back to dashboard" className="h-8 w-8 sm:h-10 sm:w-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Back to dashboard"
+          className="h-8 w-8 sm:h-10 sm:w-10"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
       </Link>
@@ -80,11 +91,42 @@ export function RoomHeader({
       </div>
 
       {room.status === "CLOSED" && (
-        <Badge variant="secondary" className="hidden sm:inline-flex">Read-only</Badge>
+        <Badge variant="secondary" className="hidden sm:inline-flex">
+          Read-only
+        </Badge>
+      )}
+
+      {showViewToggle && onToggleView && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onToggleView}
+          className="h-8 sm:h-9 px-2 sm:px-3 gap-1.5"
+          title={
+            currentView === "video" ? "Switch to whiteboard" : "Switch to video"
+          }
+        >
+          {currentView === "video" ? (
+            <>
+              <PenLine className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Whiteboard</span>
+            </>
+          ) : (
+            <>
+              <MonitorPlay className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Video</span>
+            </>
+          )}
+        </Button>
       )}
 
       {isCreator && room.status === "ACTIVE" && onCloseRoom && (
-        <Button variant="destructive" size="sm" onClick={onCloseRoom} className="h-8 sm:h-9 px-2 sm:px-3">
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={onCloseRoom}
+          className="h-8 sm:h-9 px-2 sm:px-3"
+        >
           <X className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
           <span className="hidden sm:inline">Close Room</span>
         </Button>

@@ -16,11 +16,12 @@ import { RoomHeader } from "@/components/room/room-header";
 import { ChatPanel } from "@/components/room/chat-panel";
 import { ParticipantPanel } from "@/components/room/participant-panel";
 import { ExcalidrawWhiteboard } from "@/components/room/excalidraw-whiteboard";
+import { VideoConferencePanel } from "@/components/room/video-conference";
 import { PollPanel } from "@/components/room/poll-panel";
 import { RaiseHandPanel } from "@/components/room/raise-hand-panel";
 import { AnnouncementPanel } from "@/components/room/announcement-panel";
 import { RoomMobileNav } from "@/components/room/room-mobile-nav";
-import type { Role, WhiteboardPermission } from "@prisma/client";
+import type { Role, WhiteboardPermission, RoomMode } from "@prisma/client";
 
 type RoomUser = {
   id: string;
@@ -37,6 +38,7 @@ type RoomData = {
   status: "ACTIVE" | "CLOSED";
   createdById: string;
   whiteboardPermission: WhiteboardPermission;
+  roomMode: RoomMode;
   participants: { user: RoomUser }[];
   moderators: { userId: string; user: RoomUser }[];
   messages: {
@@ -79,6 +81,8 @@ type RoomData = {
     data: unknown;
   } | null;
 };
+
+type MainView = "video" | "whiteboard";
 
 type RoomClientProps = {
   room: RoomData;
@@ -133,11 +137,13 @@ function normalizeWhiteboardData(data: unknown) {
 export function RoomClient({ room, currentUser }: RoomClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("chat");
-  const [mobileActiveTab, setMobileActiveTab] = useState<"whiteboard" | TabId>(
-    "whiteboard",
-  );
+  const [mobileActiveTab, setMobileActiveTab] = useState<
+    "video" | "whiteboard" | TabId
+  >(room.roomMode === "VIDEO_CONFERENCE" ? "video" : "whiteboard");
   const activeTabRef = useRef<TabId>("chat");
-  const mobileActiveTabRef = useRef<"whiteboard" | TabId>("whiteboard");
+  const mobileActiveTabRef = useRef<"video" | "whiteboard" | TabId>(
+    room.roomMode === "VIDEO_CONFERENCE" ? "video" : "whiteboard",
+  );
   const isDesktopRef = useRef(false);
   const [badges, setBadges] = useState<BadgeCounts>({
     chat: 0,
@@ -151,6 +157,12 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
   );
   const [whiteboardPermission, setWhiteboardPermission] =
     useState<WhiteboardPermission>(room.whiteboardPermission);
+
+  // For VIDEO_CONFERENCE rooms: track which main view is shown.
+  // Video connection stays alive in background when switching to whiteboard.
+  const [mainView, setMainView] = useState<MainView>(
+    room.roomMode === "VIDEO_CONFERENCE" ? "video" : "whiteboard",
+  );
 
   const { socket, status: socketStatus } = useSocket(room.id, currentUser.id);
 
@@ -307,7 +319,11 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     clearBadge(tabId);
   }
 
-  const { messages, sendMessage, error: chatError } = useChat({
+  const {
+    messages,
+    sendMessage,
+    error: chatError,
+  } = useChat({
     socket,
     roomId: room.id,
     userId: currentUser.id,
@@ -407,8 +423,10 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
       {socketStatus !== "connected" && (
         <div className="flex items-center justify-center bg-yellow-500/10 px-4 py-2 text-sm text-yellow-700 dark:text-yellow-300">
           {socketStatus === "connecting" && "Connecting to realtime server..."}
-          {socketStatus === "disconnected" && "Realtime connection disconnected. Reconnecting..."}
-          {socketStatus === "error" && "Realtime connection problem. Some updates may be delayed."}
+          {socketStatus === "disconnected" &&
+            "Realtime connection disconnected. Reconnecting..."}
+          {socketStatus === "error" &&
+            "Realtime connection problem. Some updates may be delayed."}
         </div>
       )}
 
@@ -418,15 +436,49 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
         isCreator={isCreator}
         dashboardPath={dashboardPath}
         onCloseRoom={handleCloseRoom}
+        showViewToggle={room.roomMode === "VIDEO_CONFERENCE"}
+        currentView={mainView}
+        onToggleView={() =>
+          setMainView((prev) => (prev === "video" ? "whiteboard" : "video"))
+        }
       />
 
       <div className="flex flex-1 overflow-hidden flex-col">
         <div className="flex flex-1 overflow-hidden relative">
+          {/* Video Conference area (only for VIDEO_CONFERENCE rooms) */}
+          {room.roomMode === "VIDEO_CONFERENCE" && (
+            <div
+              className={cn(
+                "min-w-0 flex-1 overflow-hidden bg-card transition-all",
+                "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
+                // Desktop: show when mainView is video
+                // Mobile: show when mobileActiveTab is video
+                mainView === "video" ? "hidden lg:flex" : "hidden",
+                mobileActiveTab === "video" && "flex lg:hidden",
+                mainView === "video" && mobileActiveTab === "video" && "flex",
+              )}
+            >
+              <VideoConferencePanel
+                roomId={room.id}
+                currentUser={currentUser}
+                isCreator={isCreator}
+                isModerator={isModerator}
+                isReadOnly={isReadOnly}
+              />
+            </div>
+          )}
+
+          {/* Whiteboard area */}
           <div
             className={cn(
-              "flex min-w-0 flex-1 overflow-hidden bg-card transition-all",
+              "min-w-0 flex-1 overflow-hidden bg-card transition-all",
               "m-0 sm:m-3 sm:rounded-2xl sm:border shadow-sm",
-              mobileActiveTab !== "whiteboard" ? "hidden lg:flex" : "flex",
+              // Desktop: show when mainView is whiteboard (or WHITEBOARD_ONLY room)
+              mainView === "whiteboard" ? "hidden lg:flex" : "hidden",
+              mobileActiveTab === "whiteboard" && "flex lg:hidden",
+              mainView === "whiteboard" &&
+                mobileActiveTab === "whiteboard" &&
+                "flex",
             )}
           >
             <ExcalidrawWhiteboard
@@ -439,11 +491,14 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
             />
           </div>
 
+          {/* Sidebar */}
           <aside
             className={cn(
               "flex w-full flex-col bg-card lg:w-96 lg:border-l transition-all",
-              mobileActiveTab !== "whiteboard"
-                ? "flex flex-1"
+              // Desktop: always visible
+              // Mobile: visible when a tab (not video/whiteboard) is selected
+              mobileActiveTab !== "video" && mobileActiveTab !== "whiteboard"
+                ? "flex flex-1 lg:flex-none"
                 : "hidden lg:flex",
             )}
           >
@@ -530,12 +585,15 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
         {/* Mobile Bottom Navbar */}
         <RoomMobileNav
           tabs={TABS}
+          showVideoTab={room.roomMode === "VIDEO_CONFERENCE"}
           mobileActiveTab={mobileActiveTab}
           onTabChange={(tabId) => {
-            setMobileActiveTab(tabId as "whiteboard" | TabId);
-            if (tabId !== "whiteboard") {
-              handleTabChange(tabId as TabId);
+            setMobileActiveTab(tabId as "video" | "whiteboard" | TabId);
+            if (tabId === "video" || tabId === "whiteboard") {
+              setMainView(tabId);
+              return;
             }
+            handleTabChange(tabId as TabId);
           }}
         />
       </div>
