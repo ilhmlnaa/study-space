@@ -37,6 +37,18 @@ export default function ExcalidrawWrapper({
   const lastSyncTimeRef = useRef<number>(0);
   const socketRef = useRef(socket);
   const roomIdRef = useRef(roomId);
+  const sentFileIdsRef = useRef<Set<string>>(new Set());
+
+  // Throttle interval in ms — higher value reduces server load in large rooms
+  const SYNC_THROTTLE_MS = 300;
+  const FINAL_SYNC_DELAY_MS = 350;
+
+  // Pre-populate sent files cache with initial files so they aren't re-sent
+  useEffect(() => {
+    for (const fileId of Object.keys(initialFiles ?? {})) {
+      sentFileIdsRef.current.add(fileId);
+    }
+  }, [initialFiles]);
 
   // Keep refs in sync without causing re-renders
   useEffect(() => {
@@ -48,6 +60,32 @@ export default function ExcalidrawWrapper({
   }, [roomId]);
 
   const viewMode = isReadOnly || !canDraw;
+
+  function getNewFiles(files: Record<string, any> | null | undefined) {
+    if (!files || typeof files !== "object") return undefined;
+
+    const newFiles: Record<string, any> = {};
+    for (const [fileId, file] of Object.entries(files)) {
+      if (sentFileIdsRef.current.has(fileId)) continue;
+      sentFileIdsRef.current.add(fileId);
+      newFiles[fileId] = file;
+    }
+
+    return Object.keys(newFiles).length > 0 ? newFiles : undefined;
+  }
+
+  function emitWhiteboardSync(elements: readonly any[], files: any) {
+    const sock = socketRef.current;
+    const rid = roomIdRef.current;
+    if (!sock) return;
+
+    const newFiles = getNewFiles(files);
+    sock.emit("whiteboard:sync", {
+      roomId: rid,
+      elements,
+      ...(newFiles ? { files: newFiles } : {}),
+    });
+  }
 
   // Subscribe to remote whiteboard updates
   useEffect(() => {
@@ -73,6 +111,7 @@ export default function ExcalidrawWrapper({
       if (!apiRef.current) return;
       isApplyingRemoteRef.current = true;
       apiRef.current.updateScene({ elements: [] });
+      sentFileIdsRef.current.clear();
       requestAnimationFrame(() => {
         isApplyingRemoteRef.current = false;
       });
@@ -93,9 +132,6 @@ export default function ExcalidrawWrapper({
 
     const unsubscribe = api.onChange(
       (elements: readonly any[], appState: any, files: any) => {
-        const sock = socketRef.current;
-        const rid = roomIdRef.current;
-        if (!sock) return;
         if (isApplyingRemoteRef.current) return;
 
         // Version check - skip if nothing changed
@@ -114,8 +150,8 @@ export default function ExcalidrawWrapper({
 
         if (!isDrawing) {
           const now = Date.now();
-          if (now - lastSyncTimeRef.current >= 200) {
-            sock.emit("whiteboard:sync", { roomId: rid, elements, files });
+          if (now - lastSyncTimeRef.current >= SYNC_THROTTLE_MS) {
+            emitWhiteboardSync(elements, files);
             lastSyncTimeRef.current = now;
             lastSyncedVersionRef.current = version;
           }
@@ -126,21 +162,25 @@ export default function ExcalidrawWrapper({
         if (finalSyncTimerRef.current) clearTimeout(finalSyncTimerRef.current);
         finalSyncTimerRef.current = setTimeout(() => {
           if (lastSyncedVersionRef.current !== lastVersionRef.current) {
-            sock.emit("whiteboard:sync", { roomId: rid, elements, files });
+            emitWhiteboardSync(elements, files);
             lastSyncedVersionRef.current = lastVersionRef.current;
             lastSyncTimeRef.current = Date.now();
           }
-        }, 250);
+        }, FINAL_SYNC_DELAY_MS);
 
         // Debounced save
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-          sock.emit("whiteboard:save", {
-            roomId: rid,
-            elements,
-            appState,
-            files,
-          });
+          const sock = socketRef.current;
+          const rid = roomIdRef.current;
+          if (sock) {
+            sock.emit("whiteboard:save", {
+              roomId: rid,
+              elements,
+              appState,
+              files,
+            });
+          }
         }, 2000);
       },
     );
@@ -155,6 +195,7 @@ export default function ExcalidrawWrapper({
     const rid = roomIdRef.current;
     if (!sock) return;
     sock.emit("whiteboard:clear", { roomId: rid });
+    sentFileIdsRef.current.clear();
     if (apiRef.current) {
       isApplyingRemoteRef.current = true;
       apiRef.current.updateScene({ elements: [] });
