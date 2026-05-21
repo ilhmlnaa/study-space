@@ -31,6 +31,7 @@ export function useChat({
   onNewMessage,
 }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [error, setError] = useState<string | null>(null);
   const onNewMessageRef = useRef(onNewMessage);
   useEffect(() => {
     onNewMessageRef.current = onNewMessage;
@@ -40,14 +41,21 @@ export function useChat({
     if (!socket) return;
 
     const handleNewMessage = (data: { message: ChatMessage }) => {
-      setMessages((prev) => [...prev, data.message]);
+      setMessages((prev) => [...prev, data.message].slice(-300));
       onNewMessageRef.current?.(data.message);
     };
 
+    const handleError = (data: { message: string }) => {
+      setError(data.message);
+      setTimeout(() => setError(null), 3000);
+    };
+
     socket.on("chat:new", handleNewMessage);
+    socket.on("chat:error", handleError);
 
     return () => {
       socket.off("chat:new", handleNewMessage);
+      socket.off("chat:error", handleError);
     };
   }, [socket]);
 
@@ -56,5 +64,5 @@ export function useChat({
     socket.emit("chat:send", { roomId, userId, message: content });
   }
 
-  return { messages, sendMessage };
+  return { messages, sendMessage, error };
 }

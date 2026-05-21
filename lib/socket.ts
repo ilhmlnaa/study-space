@@ -1,18 +1,123 @@
 import { Server as NetServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 import { prisma } from "./prisma";
 
 export type SocketServer = SocketIOServer;
 
+type RoomMapping = { roomId: string; userId: string };
+type RateLimitState = { count: number; windowStart: number };
+
+const PARTICIPANT_BROADCAST_DELAY_MS = 500;
+const CHAT_RATE_LIMIT_WINDOW_MS = 5_000;
+const CHAT_RATE_LIMIT_MAX_EVENTS = 5;
+const WHITEBOARD_SYNC_WINDOW_MS = 1_000;
+const WHITEBOARD_SYNC_MAX_EVENTS = 5;
+const WHITEBOARD_MAX_PAYLOAD_BYTES = 1_500_000;
+const CHAT_MAX_LENGTH = 1_000;
+
 let io: SocketIOServer | null = null;
 
-const socketRoomMap = new Map<string, { roomId: string; userId: string }>();
+const socketRoomMap = new Map<string, RoomMapping>();
+const participantBroadcastTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const chatRateLimits = new Map<string, RateLimitState>();
+const whiteboardRateLimits = new Map<string, RateLimitState>();
+
+async function setupRedisAdapter(server: SocketIOServer) {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    console.log("[Socket] REDIS_URL not set, running with in-memory adapter");
+    return;
+  }
+
+  try {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => {
+      console.error("[Socket] Redis pub client error", err);
+    });
+    subClient.on("error", (err) => {
+      console.error("[Socket] Redis sub client error", err);
+    });
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    server.adapter(createAdapter(pubClient, subClient));
+    console.log("[Socket] Redis adapter connected");
+  } catch (err) {
+    console.error("[Socket] Redis adapter setup failed, using in-memory adapter", err);
+  }
+}
 
 export function getIO(): SocketIOServer | null {
   return io;
 }
 
-export function initSocketServer(httpServer: NetServer): SocketIOServer {
+function isSocketInRoom(socketId: string, roomId: string, userId?: string) {
+  const mapping = socketRoomMap.get(socketId);
+  if (!mapping || mapping.roomId !== roomId) return false;
+  if (userId && mapping.userId !== userId) return false;
+  return true;
+}
+
+function checkRateLimit(
+  store: Map<string, RateLimitState>,
+  key: string,
+  maxEvents: number,
+  windowMs: number,
+) {
+  const now = Date.now();
+  const current = store.get(key);
+
+  if (!current || now - current.windowStart >= windowMs) {
+    store.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (current.count >= maxEvents) return false;
+
+  current.count += 1;
+  return true;
+}
+
+function getPayloadSizeBytes(data: unknown) {
+  try {
+    return Buffer.byteLength(JSON.stringify(data), "utf8");
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function scheduleParticipantBroadcast(roomId: string) {
+  const existingTimer = participantBroadcastTimers.get(roomId);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  const timer = setTimeout(async () => {
+    participantBroadcastTimers.delete(roomId);
+
+    try {
+      const participants = await prisma.roomParticipant.findMany({
+        where: { roomId, leftAt: null },
+        include: {
+          user: {
+            select: { id: true, name: true, image: true, role: true },
+          },
+        },
+      });
+
+      io!.to(roomId).emit("room:participants", {
+        participants: participants.map((p) => p.user),
+      });
+    } catch (err) {
+      console.error("[Socket] participant broadcast error", err);
+    }
+  }, PARTICIPANT_BROADCAST_DELAY_MS);
+
+  participantBroadcastTimers.set(roomId, timer);
+}
+
+export async function initSocketServer(httpServer: NetServer): Promise<SocketIOServer> {
   if (io) return io;
 
   io = new SocketIOServer(httpServer, {
@@ -25,15 +130,13 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
     },
   });
 
+  await setupRedisAdapter(io);
+
   io.on("connection", (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`);
 
-    // Join room
     socket.on("room:join", async (data: { roomId: string; userId: string }) => {
       const { roomId, userId } = data;
-      socket.join(roomId);
-
-      socketRoomMap.set(socket.id, { roomId, userId });
 
       try {
         const user = await prisma.user.findUnique({
@@ -41,40 +144,31 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
           select: { id: true, name: true, image: true, role: true },
         });
 
-        if (user) {
-          await prisma.roomParticipant.upsert({
-            where: { roomId_userId: { roomId, userId } },
-            update: { leftAt: null },
-            create: { roomId, userId },
-          });
+        if (!user) return;
 
-          socket.to(roomId).emit("room:user_joined", { user });
-          
-          const participants = await prisma.roomParticipant.findMany({
-            where: { roomId, leftAt: null },
-            include: {
-              user: {
-                select: { id: true, name: true, image: true, role: true },
-              },
-            },
-          });
+        socket.join(roomId);
+        socketRoomMap.set(socket.id, { roomId, userId });
 
-          io!.to(roomId).emit("room:participants", {
-            participants: participants.map((p) => p.user),
-          });
-        }
+        await prisma.roomParticipant.upsert({
+          where: { roomId_userId: { roomId, userId } },
+          update: { leftAt: null },
+          create: { roomId, userId },
+        });
+
+        socket.to(roomId).emit("room:user_joined", { user });
+        scheduleParticipantBroadcast(roomId);
       } catch (err) {
         console.error("[Socket] room:join error", err);
       }
     });
 
-    // Leave room
     socket.on(
       "room:leave",
       async (data: { roomId: string; userId: string }) => {
         const { roomId, userId } = data;
+        if (!isSocketInRoom(socket.id, roomId, userId)) return;
+
         socket.leave(roomId);
-        
         socketRoomMap.delete(socket.id);
 
         try {
@@ -84,33 +178,38 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
           });
 
           socket.to(roomId).emit("room:user_left", { userId });
-
-          const participants = await prisma.roomParticipant.findMany({
-            where: { roomId, leftAt: null },
-            include: {
-              user: {
-                select: { id: true, name: true, image: true, role: true },
-              },
-            },
-          });
-
-          io!.to(roomId).emit("room:participants", {
-            participants: participants.map((p) => p.user),
-          });
+          scheduleParticipantBroadcast(roomId);
         } catch (err) {
           console.error("[Socket] room:leave error", err);
         }
       },
     );
 
-    // Chat
     socket.on(
       "chat:send",
       async (data: { roomId: string; userId: string; message: string }) => {
-        const { roomId, userId, message } = data;
+        const { roomId, userId } = data;
+        const message = data.message?.trim();
+
+        if (!isSocketInRoom(socket.id, roomId, userId)) return;
+        if (!message || message.length > CHAT_MAX_LENGTH) return;
+        if (
+          !checkRateLimit(
+            chatRateLimits,
+            socket.id,
+            CHAT_RATE_LIMIT_MAX_EVENTS,
+            CHAT_RATE_LIMIT_WINDOW_MS,
+          )
+        ) {
+          socket.emit("chat:error", { message: "You are sending messages too fast." });
+          return;
+        }
 
         try {
-          const room = await prisma.room.findUnique({ where: { id: roomId } });
+          const room = await prisma.room.findUnique({
+            where: { id: roomId },
+            select: { status: true },
+          });
           if (!room || room.status !== "ACTIVE") return;
 
           const saved = await prisma.message.create({
@@ -129,7 +228,6 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       },
     );
 
-    // Whiteboard sync
     socket.on(
       "whiteboard:sync",
       (data: {
@@ -138,6 +236,20 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
         appState?: unknown;
         files?: unknown;
       }) => {
+        if (!isSocketInRoom(socket.id, data.roomId)) return;
+        if (!Array.isArray(data.elements)) return;
+        if (
+          !checkRateLimit(
+            whiteboardRateLimits,
+            socket.id,
+            WHITEBOARD_SYNC_MAX_EVENTS,
+            WHITEBOARD_SYNC_WINDOW_MS,
+          )
+        ) {
+          return;
+        }
+        if (getPayloadSizeBytes(data) > WHITEBOARD_MAX_PAYLOAD_BYTES) return;
+
         socket.to(data.roomId).emit("whiteboard:update", data);
       },
     );
@@ -151,6 +263,9 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
         files?: unknown;
       }) => {
         const { roomId, elements, appState, files } = data;
+        if (!isSocketInRoom(socket.id, roomId)) return;
+        if (!Array.isArray(elements)) return;
+
         try {
           const snapshotData = {
             elements,
@@ -168,9 +283,10 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       },
     );
 
-    // Whiteboard clear
     socket.on("whiteboard:clear", async (data: { roomId: string }) => {
       const { roomId } = data;
+      if (!isSocketInRoom(socket.id, roomId)) return;
+
       try {
         const emptyData = {
           elements: [],
@@ -188,49 +304,49 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       }
     });
 
-    // Whiteboard permission update
     socket.on(
       "whiteboard:permission:update",
       (data: { roomId: string; permission: string }) => {
+        if (!isSocketInRoom(socket.id, data.roomId)) return;
         io!.to(data.roomId).emit("whiteboard:permission:changed", data);
       },
     );
 
-    // Poll create
     socket.on("poll:create", (data: { roomId: string; poll: unknown }) => {
+      if (!isSocketInRoom(socket.id, data.roomId)) return;
       io!.to(data.roomId).emit("poll:new", { poll: data.poll });
     });
 
-    // Poll vote
     socket.on(
       "poll:vote",
       (data: { roomId: string; pollId: string; result: unknown }) => {
+        if (!isSocketInRoom(socket.id, data.roomId)) return;
         io!.to(data.roomId).emit("poll:result", { poll: data.result });
       },
     );
 
-    // Poll close
     socket.on("poll:close", (data: { roomId: string; pollId: string }) => {
+      if (!isSocketInRoom(socket.id, data.roomId)) return;
       io!.to(data.roomId).emit("poll:closed", data);
     });
 
-    // Raise hand - client sends already-created raiseHand object
     socket.on("hand:raise", (data: { roomId: string; raiseHand: unknown }) => {
       const { roomId, raiseHand } = data;
+      if (!isSocketInRoom(socket.id, roomId)) return;
       io!.to(roomId).emit("hand:raised", { raiseHand });
     });
 
-    // Resolve raise hand
     socket.on(
       "hand:resolve",
       async (data: { roomId: string; raiseHandId: string }) => {
         const { roomId, raiseHandId } = data;
+        if (!isSocketInRoom(socket.id, roomId)) return;
+
         try {
           await prisma.raiseHand.update({
             where: { id: raiseHandId },
             data: { isResolved: true, resolvedAt: new Date() },
           });
-          // emit raiseHandId so the client filter in use-raise-hand.ts works correctly
           io!.to(roomId).emit("hand:resolved", { raiseHandId });
         } catch (err) {
           console.error("[Socket] hand:resolve error", err);
@@ -238,10 +354,10 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
       },
     );
 
-    // Announcement
     socket.on(
       "announcement:send",
       (data: { roomId: string; announcement: unknown }) => {
+        if (!isSocketInRoom(socket.id, data.roomId)) return;
         io!.to(data.roomId).emit("announcement:new", {
           announcement: data.announcement,
         });
@@ -251,7 +367,9 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
     socket.on("disconnect", async () => {
       console.log(`[Socket] Client disconnected: ${socket.id}`);
 
-      // Cleanup: remove user from room participants on disconnect
+      chatRateLimits.delete(socket.id);
+      whiteboardRateLimits.delete(socket.id);
+
       const mapping = socketRoomMap.get(socket.id);
       if (mapping) {
         const { roomId, userId } = mapping;
@@ -264,19 +382,7 @@ export function initSocketServer(httpServer: NetServer): SocketIOServer {
           });
 
           socket.to(roomId).emit("room:user_left", { userId });
-
-          const participants = await prisma.roomParticipant.findMany({
-            where: { roomId, leftAt: null },
-            include: {
-              user: {
-                select: { id: true, name: true, image: true, role: true },
-              },
-            },
-          });
-
-          io!.to(roomId).emit("room:participants", {
-            participants: participants.map((p) => p.user),
-          });
+          scheduleParticipantBroadcast(roomId);
         } catch (err) {
           console.error("[Socket] disconnect cleanup error", err);
         }

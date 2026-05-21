@@ -27,7 +27,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
       moderators: { include: { user: true } },
       messages: {
         include: { user: true },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 50,
       },
       polls: {
@@ -36,10 +36,12 @@ export default async function RoomPage({ params }: RoomPageProps) {
           votes: true,
         },
         orderBy: { createdAt: "desc" },
+        take: 20,
       },
       announcements: {
         include: { user: true },
         orderBy: { createdAt: "desc" },
+        take: 30,
       },
       raiseHands: {
         include: { user: true },
@@ -52,6 +54,9 @@ export default async function RoomPage({ params }: RoomPageProps) {
   if (!room) {
     redirect("/student");
   }
+
+  // Reverse messages so oldest is first for chat display
+  room.messages = room.messages.reverse();
 
   const userId = session.user.id;
   const isAdmin = session.user.role === "ADMIN";

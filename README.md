@@ -225,11 +225,35 @@ Important realtime events:
 | Feature | Client Event | Server Event |
 |---|---|---|
 | Room presence | `room:join`, `room:leave` | `room:participants`, `room:user_joined`, `room:user_left` |
-| Chat | `chat:send` | `chat:new` |
+| Chat | `chat:send` | `chat:new`, `chat:error` |
 | Whiteboard | `whiteboard:sync`, `whiteboard:save`, `whiteboard:clear` | `whiteboard:update`, `whiteboard:cleared` |
 | Polls | `poll:create`, `poll:vote`, `poll:close` | `poll:new`, `poll:result`, `poll:closed` |
 | Raise hand | `hand:raise`, `hand:resolve` | `hand:raised`, `hand:resolved` |
 | Announcements | `announcement:send` | `announcement:new` |
+
+Realtime scalability safeguards included in the Socket.IO server:
+
+- Socket membership validation so a connected client can only emit events for the room it joined.
+- Debounced participant list broadcast to reduce database queries during join/leave spikes.
+- Chat rate limiting to reduce spam and excessive database writes.
+- Whiteboard sync rate limiting and payload size guard.
+- Reconnect handling on the client to automatically rejoin the room.
+
+For single-instance deployments, Redis is optional. For multiple app instances behind a load balancer, configure `REDIS_URL` so the Socket.IO Redis adapter can synchronize room broadcasts across instances.
+
+Local Docker Compose includes a Redis service by default:
+
+```env
+REDIS_URL="redis://redis:6379"
+```
+
+For local non-Docker development, you can run Redis separately and set:
+
+```env
+REDIS_URL="redis://localhost:6379"
+```
+
+If `REDIS_URL` is not set or Redis cannot connect, the app falls back to the default in-memory Socket.IO adapter. This fallback is fine for one app instance, but not for horizontal scaling.
 
 ## API Endpoints
 
