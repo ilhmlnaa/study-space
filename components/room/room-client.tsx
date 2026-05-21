@@ -39,7 +39,7 @@ type RoomData = {
   createdById: string;
   whiteboardPermission: WhiteboardPermission;
   roomMode: RoomMode;
-  participants: { user: RoomUser }[];
+  participants: { user: RoomUser; canSpeak: boolean; canVideo: boolean }[];
   moderators: { userId: string; user: RoomUser }[];
   messages: {
     id: string;
@@ -164,6 +164,12 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     room.roomMode === "VIDEO_CONFERENCE" ? "video" : "whiteboard",
   );
 
+  const [speakingUserIds, setSpeakingUserIds] = useState<string[]>(() =>
+    room.participants
+      .filter((participant) => participant.canSpeak || participant.canVideo)
+      .map((participant) => participant.user.id),
+  );
+
   const { socket, status: socketStatus } = useSocket(room.id, currentUser.id);
 
   useEffect(() => {
@@ -177,10 +183,29 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
       setWhiteboardPermission(data.permission);
     };
 
+    const handleSpeakingGranted = (data: {
+      userId: string;
+      canSpeak: boolean;
+      canVideo: boolean;
+    }) => {
+      if (!data.canSpeak && !data.canVideo) return;
+      setSpeakingUserIds((prev) =>
+        prev.includes(data.userId) ? prev : [...prev, data.userId],
+      );
+    };
+
+    const handleSpeakingRevoked = (data: { userId: string }) => {
+      setSpeakingUserIds((prev) => prev.filter((id) => id !== data.userId));
+    };
+
     socket.on("whiteboard:permission:changed", handlePermissionChanged);
+    socket.on("speaking:granted", handleSpeakingGranted);
+    socket.on("speaking:revoked", handleSpeakingRevoked);
 
     return () => {
       socket.off("whiteboard:permission:changed", handlePermissionChanged);
+      socket.off("speaking:granted", handleSpeakingGranted);
+      socket.off("speaking:revoked", handleSpeakingRevoked);
     };
   }, [socket, room.id]);
 
@@ -348,7 +373,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
     },
   });
 
-  const { raiseHands, raiseHand, resolveHand, userHasActiveHand } =
+  const { raiseHands, raiseHand, resolveHand, approveHand, userHasActiveHand } =
     useRaiseHand({
       socket,
       roomId: room.id,
@@ -464,6 +489,7 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
                 isCreator={isCreator}
                 isModerator={isModerator}
                 isReadOnly={isReadOnly}
+                socket={socket}
               />
             </div>
           )}
@@ -542,7 +568,13 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
               )}
 
               {activeTab === "participants" && (
-                <ParticipantPanel participants={participants} />
+                <ParticipantPanel
+                  participants={participants}
+                  roomId={room.id}
+                  canModerate={(isCreator || isModerator) && !isReadOnly}
+                  isVideoConference={room.roomMode === "VIDEO_CONFERENCE"}
+                  speakingUserIds={speakingUserIds}
+                />
               )}
 
               {activeTab === "polls" && (
@@ -563,9 +595,15 @@ export function RoomClient({ room, currentUser }: RoomClientProps) {
                   raiseHands={raiseHands}
                   onRaiseHand={raiseHand}
                   onResolveHand={resolveHand}
+                  onApproveHand={
+                    room.roomMode === "VIDEO_CONFERENCE"
+                      ? approveHand
+                      : undefined
+                  }
                   isReadOnly={isReadOnly}
                   currentUserId={currentUser.id}
                   canResolve={canResolveRaiseHand}
+                  isVideoConference={room.roomMode === "VIDEO_CONFERENCE"}
                   userHasActiveHand={userHasActiveHand}
                 />
               )}

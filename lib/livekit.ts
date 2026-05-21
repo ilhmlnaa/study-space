@@ -8,14 +8,25 @@ export type LiveKitPermissions = {
   canPublishData: boolean;
 };
 
+export type ParticipantOverrides = {
+  canSpeak: boolean;
+  canVideo: boolean;
+};
+
 /**
  * Get LiveKit permissions based on user role in the room.
+ * For students, per-participant overrides (canSpeak/canVideo) take precedence
+ * over room-level settings.
  */
-export function getLiveKitPermissions(role: "creator" | "moderator" | "student", roomSettings: {
-  studentCanEnableCamera: boolean;
-  studentCanEnableMic: boolean;
-  studentCanShareScreen: boolean;
-}): LiveKitPermissions {
+export function getLiveKitPermissions(
+  role: "creator" | "moderator" | "student",
+  roomSettings: {
+    studentCanEnableCamera: boolean;
+    studentCanEnableMic: boolean;
+    studentCanShareScreen: boolean;
+  },
+  participantOverrides?: ParticipantOverrides,
+): LiveKitPermissions {
   if (role === "creator" || role === "moderator") {
     return {
       canPublish: true,
@@ -24,10 +35,17 @@ export function getLiveKitPermissions(role: "creator" | "moderator" | "student",
     };
   }
 
-  // Students: can always subscribe, publish data (for chat etc)
-  // but camera/mic depends on room settings
+  // Students: can always subscribe and publish data (for chat etc)
+  // Publishing audio/video depends on room settings OR individual permission grants
+  const canPublishAudio =
+    roomSettings.studentCanEnableMic ||
+    (participantOverrides?.canSpeak ?? false);
+  const canPublishVideo =
+    roomSettings.studentCanEnableCamera ||
+    (participantOverrides?.canVideo ?? false);
+
   return {
-    canPublish: roomSettings.studentCanEnableCamera || roomSettings.studentCanEnableMic,
+    canPublish: canPublishAudio || canPublishVideo,
     canSubscribe: true,
     canPublishData: true,
   };
@@ -41,6 +59,7 @@ export async function generateLiveKitToken(options: {
   participantIdentity: string;
   participantName: string;
   permissions: LiveKitPermissions;
+  metadata?: string;
 }): Promise<string> {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -53,6 +72,7 @@ export async function generateLiveKitToken(options: {
     identity: options.participantIdentity,
     name: options.participantName,
     ttl: "6h",
+    metadata: options.metadata,
   });
 
   const grant: VideoGrant = {

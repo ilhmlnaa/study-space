@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Loader2, Video, VideoOff } from "lucide-react";
+import { Loader2, Mic, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { Socket } from "socket.io-client";
 
 type VideoConferenceProps = {
   roomId: string;
@@ -21,6 +22,7 @@ type VideoConferenceProps = {
   isCreator: boolean;
   isModerator: boolean;
   isReadOnly: boolean;
+  socket?: Socket | null;
 };
 
 export function VideoConferencePanel({
@@ -29,12 +31,48 @@ export function VideoConferencePanel({
   isCreator,
   isModerator,
   isReadOnly,
+  socket,
 }: VideoConferenceProps) {
   const [token, setToken] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isJoined, setIsJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speakingNotification, setSpeakingNotification] = useState<
+    string | null
+  >(null);
+
+  // Listen for speaking permission changes directed at this user
+  useEffect(() => {
+    if (!socket || !_currentUser) return;
+
+    const handleSpeakingGranted = (data: {
+      userId: string;
+      canSpeak: boolean;
+      canVideo: boolean;
+    }) => {
+      if (data.userId !== _currentUser.id) return;
+      const msg = data.canSpeak
+        ? "You have been allowed to speak. Reconnect to activate your mic."
+        : "Your video permission has been updated.";
+      setSpeakingNotification(msg);
+      setTimeout(() => setSpeakingNotification(null), 8000);
+    };
+
+    const handleSpeakingRevoked = (data: { userId: string }) => {
+      if (data.userId !== _currentUser.id) return;
+      setSpeakingNotification("Your speaking permission has been revoked.");
+      setTimeout(() => setSpeakingNotification(null), 6000);
+    };
+
+    socket.on("speaking:granted", handleSpeakingGranted);
+    socket.on("speaking:revoked", handleSpeakingRevoked);
+
+    return () => {
+      socket.off("speaking:granted", handleSpeakingGranted);
+      socket.off("speaking:revoked", handleSpeakingRevoked);
+    };
+  }, [socket, _currentUser]);
 
   const joinVideoRoom = useCallback(async () => {
     setIsConnecting(true);
@@ -127,9 +165,17 @@ export function VideoConferencePanel({
 
   return (
     <div
-      className="h-full w-full [&_.lk-video-conference]:h-full"
+      className="relative h-full w-full [&_.lk-video-conference]:h-full"
       data-lk-theme="default"
     >
+      {speakingNotification && (
+        <div className="absolute top-2 left-1/2 z-50 -translate-x-1/2 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2 shadow-lg">
+            <Mic className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm font-medium">{speakingNotification}</p>
+          </div>
+        </div>
+      )}
       <LiveKitRoom
         serverUrl={url!}
         token={token!}

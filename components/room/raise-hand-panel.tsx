@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Hand, CheckCircle2 } from "lucide-react";
+import { Hand, Mic, X } from "lucide-react";
 
-import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/layout/user-avatar";
 import { RoleBadge } from "@/components/layout/role-badge";
@@ -13,9 +12,11 @@ type RaiseHandPanelProps = {
   raiseHands: RaiseHand[];
   onRaiseHand: () => Promise<unknown>;
   onResolveHand: (raiseHandId: string) => Promise<unknown>;
+  onApproveHand?: (raiseHand: RaiseHand) => Promise<unknown>;
   isReadOnly: boolean;
   currentUserId: string;
   canResolve: boolean;
+  isVideoConference?: boolean;
   userHasActiveHand?: boolean;
 };
 
@@ -23,13 +24,15 @@ export function RaiseHandPanel({
   raiseHands,
   onRaiseHand,
   onResolveHand,
+  onApproveHand,
   isReadOnly,
   currentUserId,
   canResolve,
+  isVideoConference = false,
   userHasActiveHand = false,
 }: RaiseHandPanelProps) {
   const [isRaising, setIsRaising] = useState(false);
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const unresolvedHands = raiseHands.filter((h) => !h.isResolved);
   const myActiveHand = unresolvedHands.find((h) => h.userId === currentUserId);
@@ -53,12 +56,22 @@ export function RaiseHandPanel({
     }
   }
 
-  async function handleResolve(raiseHandId: string) {
-    setResolvingId(raiseHandId);
+  async function handleDismiss(raiseHandId: string) {
+    setPendingId(raiseHandId);
     try {
       await onResolveHand(raiseHandId);
     } finally {
-      setResolvingId(null);
+      setPendingId(null);
+    }
+  }
+
+  async function handleApprove(hand: RaiseHand) {
+    if (!onApproveHand) return;
+    setPendingId(hand.id);
+    try {
+      await onApproveHand(hand);
+    } finally {
+      setPendingId(null);
     }
   }
 
@@ -101,45 +114,65 @@ export function RaiseHandPanel({
             {unresolvedHands.map((hand) => (
               <li
                 key={hand.id}
-                className="flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/50"
+                className="flex flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/50"
               >
-                <UserAvatar
-                  name={hand.user.name}
-                  image={hand.user.image}
-                  size="sm"
-                />
-                <div className="flex flex-1 items-center gap-2 overflow-hidden">
-                  <span className="truncate text-sm font-medium text-foreground">
-                    {hand.user.name ?? "Anonymous"}
-                  </span>
-                  <RoleBadge
-                    role={
-                      hand.user.role as
-                        | "ADMIN"
-                        | "MENTOR"
-                        | "MODERATOR"
-                        | "STUDENT"
-                    }
-                    className="scale-75"
-                  />
-                </div>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {new Date(hand.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {canResolve && (
-                  <Button
+                <div className="flex items-center gap-3">
+                  <UserAvatar
+                    name={hand.user.name}
+                    image={hand.user.image}
                     size="sm"
-                    variant="ghost"
-                    onClick={() => handleResolve(hand.id)}
-                    disabled={resolvingId === hand.id}
-                    aria-label={`Resolve hand raised by ${hand.user.name ?? "Anonymous"}`}
-                    className="shrink-0"
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  </Button>
+                  />
+                  <div className="flex flex-1 items-center gap-2 overflow-hidden">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {hand.user.name ?? "Anonymous"}
+                    </span>
+                    <RoleBadge
+                      role={
+                        hand.user.role as
+                          | "ADMIN"
+                          | "MENTOR"
+                          | "MODERATOR"
+                          | "STUDENT"
+                      }
+                      className="scale-75"
+                    />
+                  </div>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {new Date(hand.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+
+                {canResolve && (
+                  <div className="flex gap-2">
+                    {isVideoConference && onApproveHand && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleApprove(hand)}
+                        disabled={pendingId === hand.id}
+                        className="flex-1 gap-1.5"
+                      >
+                        <Mic className="h-3.5 w-3.5" />
+                        Allow to Speak
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDismiss(hand.id)}
+                      disabled={pendingId === hand.id}
+                      className={
+                        isVideoConference ? "gap-1.5" : "flex-1 gap-1.5"
+                      }
+                      aria-label={`Dismiss hand from ${hand.user.name ?? "Anonymous"}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Dismiss
+                    </Button>
+                  </div>
                 )}
               </li>
             ))}

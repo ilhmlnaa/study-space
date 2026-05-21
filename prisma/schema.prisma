@@ -131,6 +131,8 @@ model RoomParticipant {
   userId   String
   joinedAt DateTime @default(now())
   leftAt   DateTime?
+  canSpeak  Boolean  @default(false)
+  canVideo  Boolean  @default(false)
 
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

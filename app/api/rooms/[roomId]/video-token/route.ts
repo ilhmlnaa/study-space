@@ -38,10 +38,7 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     if (room.status !== "ACTIVE") {
-      return NextResponse.json(
-        { error: "Room is closed." },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Room is closed." }, { status: 400 });
     }
 
     if (room.roomMode !== "VIDEO_CONFERENCE") {
@@ -66,11 +63,32 @@ export async function POST(_request: Request, context: RouteContext) {
     // Determine role for permissions
     const role = isCreator ? "creator" : isModerator ? "moderator" : "student";
 
-    const permissions = getLiveKitPermissions(role, {
-      studentCanEnableCamera: room.studentCanEnableCamera,
-      studentCanEnableMic: room.studentCanEnableMic,
-      studentCanShareScreen: room.studentCanShareScreen,
-    });
+    // Fetch per-participant overrides for students
+    let participantOverrides:
+      | { canSpeak: boolean; canVideo: boolean }
+      | undefined;
+    if (role === "student") {
+      const participant = await prisma.roomParticipant.findUnique({
+        where: { roomId_userId: { roomId, userId } },
+        select: { canSpeak: true, canVideo: true },
+      });
+      if (participant) {
+        participantOverrides = {
+          canSpeak: participant.canSpeak,
+          canVideo: participant.canVideo,
+        };
+      }
+    }
+
+    const permissions = getLiveKitPermissions(
+      role,
+      {
+        studentCanEnableCamera: room.studentCanEnableCamera,
+        studentCanEnableMic: room.studentCanEnableMic,
+        studentCanShareScreen: room.studentCanShareScreen,
+      },
+      participantOverrides,
+    );
 
     // Room name in LiveKit = "studyspace-{roomId}"
     const livekitRoomName = `studyspace-${room.id}`;
@@ -80,6 +98,7 @@ export async function POST(_request: Request, context: RouteContext) {
       participantIdentity: userId,
       participantName: session.user.name ?? "Anonymous",
       permissions,
+      metadata: JSON.stringify({ role }),
     });
 
     const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;

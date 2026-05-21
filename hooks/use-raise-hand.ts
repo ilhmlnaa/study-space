@@ -109,9 +109,23 @@ export function useRaiseHand({
     }
   }
 
+  async function approveHand(raiseHand: RaiseHand) {
+    const res = await fetch(`/api/rooms/${roomId}/speaking`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: raiseHand.userId, canSpeak: true }),
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to approve speaking request");
+    }
+
+    await resolveHand(raiseHand.id);
+  }
+
   const userHasActiveHand = raiseHands.some(
     (h) => h.userId === currentUserId && !h.isResolved,
   );
 
-  return { raiseHands, raiseHand, resolveHand, userHasActiveHand };
+  return { raiseHands, raiseHand, resolveHand, approveHand, userHasActiveHand };
 }
