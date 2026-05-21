@@ -7,7 +7,9 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   ControlBar,
+  PreJoin,
   useTracks,
+  type LocalUserChoices,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Track } from "livekit-client";
@@ -39,21 +41,23 @@ function VideoLayout() {
   );
 
   return (
-    <div className="relative flex h-full w-full flex-col">
-      <GridLayout tracks={tracks} className="flex-1">
+    <div className="relative h-full w-full overflow-hidden">
+      <GridLayout tracks={tracks} className="h-full w-full pb-20">
         <ParticipantTile />
       </GridLayout>
-      <ControlBar
-        variation="verbose"
-        controls={{
-          microphone: true,
-          camera: true,
-          screenShare: true,
-          leave: true,
-          chat: false,
-          settings: false,
-        }}
-      />
+      <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-background/95 via-background/70 to-transparent px-3 pb-3 pt-8">
+        <ControlBar
+          variation="verbose"
+          controls={{
+            microphone: true,
+            camera: true,
+            screenShare: true,
+            leave: true,
+            chat: false,
+            settings: false,
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -112,34 +116,39 @@ export function VideoConferencePanel({
     };
   }, [socket, currentUser]);
 
-  const handleJoin = useCallback(async () => {
-    setIsConnecting(true);
-    setError(null);
+  const handleJoin = useCallback(
+    async (choices: LocalUserChoices) => {
+      setIsConnecting(true);
+      setError(null);
+      setAudioEnabled(choices.audioEnabled);
+      setVideoEnabled(choices.videoEnabled);
 
-    try {
-      const response = await fetch(`/api/rooms/${roomId}/video-token`, {
-        method: "POST",
-      });
+      try {
+        const response = await fetch(`/api/rooms/${roomId}/video-token`, {
+          method: "POST",
+        });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(
-          (data as { error?: string })?.error ?? "Failed to get video token",
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(
+            (data as { error?: string })?.error ?? "Failed to get video token",
+          );
+        }
+
+        const data = (await response.json()) as { url: string; token: string };
+        setUrl(data.url);
+        setToken(data.token);
+        setIsJoined(true);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to join video room",
         );
+      } finally {
+        setIsConnecting(false);
       }
-
-      const data = (await response.json()) as { url: string; token: string };
-      setUrl(data.url);
-      setToken(data.token);
-      setIsJoined(true);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to join video room",
-      );
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [roomId]);
+    },
+    [roomId],
+  );
 
   const handleDisconnected = useCallback(() => {
     setIsJoined(false);
@@ -189,67 +198,40 @@ export function VideoConferencePanel({
     );
   }
 
-  // Prejoin screen
+  // Prejoin screen — LiveKit PreJoin with camera preview + device selectors
   if (showPreJoin && !isJoined) {
     return (
-      <div className="flex h-full w-full items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-6 text-center">
-          <div>
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Video className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold">Ready to join?</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure your devices before joining
-            </p>
-          </div>
-
+      <div className="flex h-full w-full flex-col items-center justify-center overflow-auto p-4">
+        <div className="w-full max-w-xl">
           {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
-          {/* Device toggles */}
-          <div className="flex items-center justify-center gap-3">
-            <Button
-              variant={audioEnabled ? "default" : "outline"}
-              size="icon"
-              onClick={() => setAudioEnabled(!audioEnabled)}
-              aria-label={
-                audioEnabled ? "Mute microphone" : "Unmute microphone"
+          <div data-lk-theme="default">
+            <PreJoin
+              defaults={{
+                username: currentUser.name ?? "Anonymous",
+                videoEnabled: isCreator || isModerator,
+                audioEnabled: isCreator || isModerator,
+              }}
+              onSubmit={handleJoin}
+              onError={(err) =>
+                console.warn("PreJoin device error:", err.message)
               }
-              title={audioEnabled ? "Mic on" : "Mic off"}
-            >
-              <Mic className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={videoEnabled ? "default" : "outline"}
-              size="icon"
-              onClick={() => setVideoEnabled(!videoEnabled)}
-              aria-label={videoEnabled ? "Turn off camera" : "Turn on camera"}
-              title={videoEnabled ? "Camera on" : "Camera off"}
-            >
-              <Video className="h-4 w-4" />
-            </Button>
+              joinLabel={isConnecting ? "Connecting..." : "Join Video Call"}
+              userLabel="Display Name"
+              camLabel="Camera"
+              micLabel="Microphone"
+              persistUserChoices={false}
+            />
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            {audioEnabled && videoEnabled
-              ? "Camera and microphone will be on"
-              : audioEnabled
-                ? "Microphone on, camera off"
-                : videoEnabled
-                  ? "Camera on, microphone off"
-                  : "Camera and microphone will be off"}
-          </p>
-
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mt-3 flex justify-center">
             <Button
               variant="destructive"
-              size="lg"
-              type="button"
+              size="sm"
               onClick={() => {
                 setShowPreJoin(false);
                 setError(null);
@@ -257,27 +239,8 @@ export function VideoConferencePanel({
               disabled={isConnecting}
               className="gap-2"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
               Cancel
-            </Button>
-            <Button
-              variant="default"
-              size="lg"
-              onClick={handleJoin}
-              disabled={isConnecting}
-              className="gap-2"
-            >
-              {isConnecting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Video className="h-4 w-4" />
-                  Join Video Call
-                </>
-              )}
             </Button>
           </div>
         </div>
