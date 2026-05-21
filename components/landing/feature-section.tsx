@@ -1,4 +1,12 @@
-import { BarChart2, BookOpen, Hand, MessageSquare, PenTool, Shield } from "lucide-react";
+import {
+  BarChart2,
+  BookOpen,
+  Hand,
+  MessageSquare,
+  PenTool,
+  Shield,
+  Video,
+} from "lucide-react";
 import { FeatureCard } from "@/components/landing/feature-card";
 
 const features = [
@@ -6,6 +14,12 @@ const features = [
     icon: BookOpen,
     title: "Collaborative Study Room",
     description: "Create or join study rooms with a unique code",
+  },
+  {
+    icon: Video,
+    title: "Video Conference",
+    description:
+      "Built-in HD video calls with screen share, powered by LiveKit SFU",
   },
   {
     icon: PenTool,
@@ -25,7 +39,7 @@ const features = [
   {
     icon: Hand,
     title: "Raise Hand",
-    description: "Students can raise their hand to ask questions",
+    description: "Students can raise their hand to ask or request to speak",
   },
   {
     icon: Shield,
@@ -43,7 +57,8 @@ export function FeatureSection() {
             Everything You Need for Interactive Learning
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Bring communication, collaboration, and classroom management into one focused learning workspace.
+            Bring communication, collaboration, and classroom management into
+            one focused learning workspace.
           </p>
         </div>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
-import { MessageSquare, PenTool, BarChart2, Users } from "lucide-react";
+import { MessageSquare, PenTool, BarChart2, Video } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const fadeUp: Variants = {
@@ -16,11 +16,11 @@ const fadeUp: Variants = {
 
 const mockCards = [
   {
-    icon: MessageSquare,
-    title: "Live Chat",
-    description: "Ask questions in real-time",
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    icon: Video,
+    title: "Video Call",
+    description: "HD video conference",
+    color: "text-rose-500",
+    bg: "bg-rose-500/10",
   },
   {
     icon: PenTool,
@@ -30,18 +30,18 @@ const mockCards = [
     bg: "bg-purple-500/10",
   },
   {
+    icon: MessageSquare,
+    title: "Live Chat",
+    description: "Ask in real-time",
+    color: "text-blue-500",
+    bg: "bg-blue-500/10",
+  },
+  {
     icon: BarChart2,
     title: "Polling",
     description: "Interactive polls",
     color: "text-amber-500",
     bg: "bg-amber-500/10",
-  },
-  {
-    icon: Users,
-    title: "Participants",
-    description: "See who's online",
-    color: "text-green-500",
-    bg: "bg-green-500/10",
   },
 ];
 
@@ -85,8 +85,8 @@ export function HeroSection() {
           className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground"
         >
           StudySpace helps mentors, moderators, and students collaborate through
-          chat, digital whiteboard, polling, and interactive study room
-          features.
+          HD video conferencing, chat, digital whiteboard, polling, and
+          interactive study room features.
         </motion.p>
 
         {/* CTA Buttons */}
