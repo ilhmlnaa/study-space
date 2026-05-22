@@ -261,4 +261,3 @@ ALTER TABLE "RaiseHand" ADD CONSTRAINT "RaiseHand_userId_fkey" FOREIGN KEY ("use
 
 -- AddForeignKey
 ALTER TABLE "WhiteboardSnapshot" ADD CONSTRAINT "WhiteboardSnapshot_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
