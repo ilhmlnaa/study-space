@@ -44,7 +44,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 text-sm text-muted-foreground sm:flex-row">
-          <p>© 2025 StudySpace. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} StudySpace. All rights reserved.</p>
           <p className="flex items-center gap-1">
             Made with{" "}
             <Heart className="h-3.5 w-3.5 fill-red-500 text-red-500" /> by{" "}
